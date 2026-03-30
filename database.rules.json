@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "playLogs": {
+      "$gameId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "logs": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "rankings": {
+      "$gameId": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    }
+  }
+}
