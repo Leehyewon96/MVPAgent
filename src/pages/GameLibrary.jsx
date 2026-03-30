@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
+import { usePlayMetrics } from '../hooks/usePlayMetrics';
 import {
   downloadMarkdown,
   downloadJSON,
@@ -15,12 +16,19 @@ const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 export default function GameLibrary() {
   const games = useGameStore((s) => s.games);
   const loaded = useGameStore((s) => s.loaded);
+  const playMetrics = usePlayMetrics();
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">게임 라이브러리</h1>
-        <p className="text-dark-400 mt-1">파이프라인에서 생성된 게임 목록을 관리합니다</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">게임 라이브러리</h1>
+          <p className="text-dark-400 mt-1">파이프라인에서 생성된 게임 목록을 관리합니다</p>
+        </div>
+        <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full ${playMetrics.connected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-dark-700 text-dark-400'}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${playMetrics.connected ? 'bg-emerald-400 animate-pulse' : 'bg-dark-500'}`} />
+          {playMetrics.connected ? '실시간' : '오프라인'}
+        </span>
       </div>
 
       {!loaded ? (
@@ -39,7 +47,7 @@ export default function GameLibrary() {
         <div className="space-y-4">
           {games.map((game, idx) => (
             <motion.div key={game.id || game.gameId || idx} variants={item}>
-              <GameCard game={game} index={idx} />
+              <GameCard game={game} index={idx} playMetrics={playMetrics} />
             </motion.div>
           ))}
         </div>
@@ -52,15 +60,34 @@ const tabs = [
   { key: 'topic', label: '주제', icon: '🔍' },
   { key: 'plan', label: '기획서', icon: '📋' },
   { key: 'play', label: '게임', icon: '🎮' },
+  { key: 'metrics', label: '유저 지표', icon: '📊' },
 ];
 
-function GameCard({ game, index }) {
+function fmtDur(sec) {
+  if (!sec) return '0초';
+  if (sec < 60) return `${sec}초`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}분`;
+  return `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분`;
+}
+
+function GameCard({ game, index, playMetrics }) {
   const [activeTab, setActiveTab] = useState('topic');
+  const [copied, setCopied] = useState(false);
 
   const plan = game.plan || {};
   const topic = plan.topic || {};
   const sys = plan.systemDesign || {};
   const con = plan.contentDesign || {};
+  const gid = game.id || game.gameId;
+  const gs = playMetrics.getGameStats(gid);
+  const playUrl = playMetrics.getPlayUrl(gid);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(playUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <div className="card">
@@ -84,12 +111,45 @@ function GameCard({ game, index }) {
                   </span>
                 </>
               )}
+              {gs.activeSessions > 0 && (
+                <>
+                  <span className="text-xs text-dark-600">·</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 animate-pulse">
+                    {gs.activeSessions}명 플레이 중
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
-        <Link to={`/game/${game.id || game.gameId}`} className="btn-primary text-sm">
-          플레이
-        </Link>
+        <div className="flex items-center gap-2">
+          <button onClick={handleCopy} className="text-xs text-dark-400 hover:text-white bg-dark-800 hover:bg-dark-700 px-2.5 py-1.5 rounded-lg transition-all" title="공유 링크 복사">
+            {copied ? '✓ 복사됨' : '🔗 공유 링크'}
+          </button>
+          <Link to={`/game/${gid}`} className="btn-primary text-sm">
+            플레이
+          </Link>
+        </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-4 gap-3 mb-4">
+        <div className="bg-dark-900/50 rounded-lg p-2.5 text-center">
+          <p className="text-lg font-bold">{gs.uniqueVisitors}</p>
+          <p className="text-xs text-dark-500">방문자</p>
+        </div>
+        <div className="bg-dark-900/50 rounded-lg p-2.5 text-center">
+          <p className="text-lg font-bold">{gs.totalSessions}</p>
+          <p className="text-xs text-dark-500">세션</p>
+        </div>
+        <div className="bg-dark-900/50 rounded-lg p-2.5 text-center">
+          <p className="text-lg font-bold">{fmtDur(gs.avgDuration)}</p>
+          <p className="text-xs text-dark-500">평균 플레이</p>
+        </div>
+        <div className="bg-dark-900/50 rounded-lg p-2.5 text-center">
+          <p className="text-lg font-bold">{gs.activeSessions}</p>
+          <p className="text-xs text-dark-500">현재 접속</p>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -119,7 +179,8 @@ function GameCard({ game, index }) {
         >
           {activeTab === 'topic' && <TopicTab topic={topic} />}
           {activeTab === 'plan' && <PlanTab plan={plan} sys={sys} con={con} />}
-          {activeTab === 'play' && <PlayTab game={game} />}
+          {activeTab === 'play' && <PlayTab game={game} playUrl={playUrl} />}
+          {activeTab === 'metrics' && <MetricsTab gs={gs} playUrl={playUrl} />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -223,7 +284,7 @@ function PlanTab({ plan, sys, con }) {
 }
 
 // ─── 게임 탭 ───
-function PlayTab({ game }) {
+function PlayTab({ game, playUrl }) {
   return (
     <div className="space-y-3">
       <div className="bg-dark-900/60 rounded-xl p-4 border border-dark-700/30">
@@ -235,6 +296,21 @@ function PlayTab({ game }) {
             </span>
           } />
           <Field label="코드 크기" value={game.code ? `${(game.code.length / 1024).toFixed(1)} KB` : '-'} />
+        </div>
+
+        <div className="mt-3 pt-3 border-t border-dark-700/30">
+          <span className="text-xs text-dark-500">공유 링크 (외부 유저 플레이용)</span>
+          <div className="flex items-center gap-2 mt-1">
+            <input
+              readOnly
+              value={playUrl}
+              className="flex-1 bg-dark-800 border border-dark-600 rounded-lg px-3 py-1.5 text-xs font-mono text-dark-300"
+              onClick={(e) => e.target.select()}
+            />
+            <a href={playUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-400 hover:text-primary-300 whitespace-nowrap">
+              열기 ↗
+            </a>
+          </div>
         </div>
 
         {game.scores && (
@@ -268,6 +344,65 @@ function PlayTab({ game }) {
           <DlButton label="HTML 다운로드" onClick={() => downloadHTML(game.code, `${game.title || 'game'}.html`)} />
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── 유저 지표 탭 ───
+function MetricsTab({ gs, playUrl }) {
+  const daily = gs.dailyStats || [];
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatBox label="총 방문자" value={gs.uniqueVisitors} unit="명" color="text-primary-400" />
+        <StatBox label="총 세션" value={gs.totalSessions} unit="회" color="text-amber-400" />
+        <StatBox label="평균 플레이" value={fmtDur(gs.avgDuration)} color="text-emerald-400" />
+        <StatBox label="현재 접속" value={gs.activeSessions} unit="명" color="text-cyan-400" active={gs.activeSessions > 0} />
+      </div>
+
+      {daily.length > 0 && (
+        <div className="bg-dark-900/60 rounded-xl p-4 border border-dark-700/30">
+          <h4 className="text-sm font-semibold mb-3">일별 유저 추이</h4>
+          <div className="space-y-1.5">
+            {daily.slice(-7).map((d) => (
+              <div key={d.date} className="flex items-center gap-3 text-xs">
+                <span className="text-dark-500 w-20 font-mono">{d.date}</span>
+                <div className="flex-1 h-2 bg-dark-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, (d.visitors / Math.max(1, ...daily.map((x) => x.visitors))) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-dark-300 w-16 text-right">{d.visitors}명 / {d.sessions}회</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-dark-900/60 rounded-xl p-4 border border-dark-700/30">
+        <h4 className="text-sm font-semibold mb-2">공유 링크</h4>
+        <p className="text-xs text-dark-400 mb-2">이 링크를 공유하면 누구나 게임을 플레이할 수 있고, 플레이 데이터가 자동 수집됩니다</p>
+        <div className="flex items-center gap-2">
+          <input
+            readOnly
+            value={playUrl}
+            className="flex-1 bg-dark-800 border border-dark-600 rounded-lg px-3 py-1.5 text-xs font-mono text-dark-300"
+            onClick={(e) => e.target.select()}
+          />
+          <a href={playUrl} target="_blank" rel="noopener noreferrer" className="btn-primary text-xs">열기 ↗</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatBox({ label, value, unit, color, active }) {
+  return (
+    <div className={`bg-dark-900/60 rounded-xl p-3 border ${active ? 'border-emerald-500/30' : 'border-dark-700/30'} text-center`}>
+      <p className={`text-xl font-bold ${color}`}>{value}{unit && <span className="text-xs font-normal text-dark-500 ml-0.5">{unit}</span>}</p>
+      <p className="text-xs text-dark-500 mt-0.5">{label}</p>
     </div>
   );
 }

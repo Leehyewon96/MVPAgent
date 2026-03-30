@@ -1,6 +1,20 @@
 import { create } from 'zustand';
 import { db, isConfigured } from '../firebase/config';
 
+const DEV_API = 'http://localhost:3100';
+
+async function registerGameOnServer(game) {
+  try {
+    await fetch(`${DEV_API}/api/games`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(game),
+    });
+  } catch {
+    // server may not be running
+  }
+}
+
 let firestoreModules = null;
 
 async function getFirestoreModules() {
@@ -86,19 +100,23 @@ export const useGameStore = create((set, get) => ({
     const firestoreGames = await loadFromFirestore(uid);
     const localGames = loadFromLocal(uid);
 
+    let loadedGames = [];
     if (firestoreGames && firestoreGames.length > 0) {
-      set({ games: firestoreGames, loaded: true });
+      loadedGames = firestoreGames;
       saveToLocal(uid, firestoreGames);
     } else if (localGames.length > 0) {
-      set({ games: localGames, loaded: true });
-      // localStorage에만 있는 경우 Firestore로 마이그레이션
+      loadedGames = localGames;
       if (isConfigured && db) {
         for (const game of localGames) {
           saveToFirestore(uid, game);
         }
       }
-    } else {
-      set({ games: [], loaded: true });
+    }
+
+    set({ games: loadedGames, loaded: true });
+
+    for (const game of loadedGames) {
+      registerGameOnServer(game);
     }
   },
 
@@ -113,6 +131,8 @@ export const useGameStore = create((set, get) => ({
       saveToLocal(uid, updated);
       saveToFirestore(uid, game);
     }
+
+    registerGameOnServer(game);
   },
 
   removeGame: (gameId) => {

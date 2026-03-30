@@ -6,7 +6,7 @@ import DauChart from '../components/charts/DauChart';
 import SessionChart from '../components/charts/SessionChart';
 import { useAgentStore } from '../store/agentStore';
 import { useGameStore } from '../store/gameStore';
-import { useRealMetrics } from '../hooks/useRealMetrics';
+import { usePlayMetrics } from '../hooks/usePlayMetrics';
 
 const container = {
   hidden: { opacity: 0 },
@@ -17,25 +17,67 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+function formatDuration(sec) {
+  if (sec < 60) return `${sec}초`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}분 ${sec % 60}초`;
+  return `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분`;
+}
+
 export default function Dashboard() {
   const agents = useAgentStore((s) => s.agents);
   const pipelineStatus = useAgentStore((s) => s.pipelineStatus);
   const games = useGameStore((s) => s.games);
-  const { hasData, dauData, sessionData } = useRealMetrics();
+  const { global, connected, getGameStats, getPlayUrl } = usePlayMetrics();
 
   const statCards = useMemo(() => [
     { label: '활성 게임', value: games.length, icon: '🎮' },
-    { label: '파이프라인', value: pipelineStatus === 'idle' ? '대기' : pipelineStatus === 'running' ? '실행 중' : pipelineStatus === 'completed' ? '완료' : '오류', icon: '🤖' },
-    { label: '완료된 Agent', value: Object.values(agents).filter((a) => a.status === 'completed').length + ' / 5', icon: '📊' },
-    { label: '총 로그', value: Object.values(agents).reduce((sum, a) => sum + a.logs.length, 0), icon: '📝' },
-  ], [agents, games, pipelineStatus]);
+    { label: '전체 플레이어', value: global.uniqueVisitors, icon: '👥' },
+    { label: '총 세션 수', value: global.totalSessions, icon: '🎯' },
+    { label: '총 플레이 시간', value: global.totalPlayTime > 0 ? formatDuration(global.totalPlayTime) : '0초', icon: '⏱️' },
+  ], [games, global]);
+
+  const dauData = useMemo(() => {
+    const allDailyMap = {};
+    games.forEach((g) => {
+      const gs = getGameStats(g.id || g.gameId);
+      (gs.dailyStats || []).forEach((d) => {
+        if (!allDailyMap[d.date]) allDailyMap[d.date] = 0;
+        allDailyMap[d.date] += d.visitors;
+      });
+    });
+    return Object.entries(allDailyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-7)
+      .map(([date, dau]) => ({ date: date.slice(5).replace('-', '/'), dau }));
+  }, [games, getGameStats]);
+
+  const sessionData = useMemo(() => {
+    const dailyMap = {};
+    games.forEach((g) => {
+      const gs = getGameStats(g.id || g.gameId);
+      (gs.dailyStats || []).forEach((d) => {
+        if (!dailyMap[d.date]) dailyMap[d.date] = { sessions: 0 };
+        dailyMap[d.date].sessions += d.sessions;
+      });
+    });
+    return Object.entries(dailyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-7)
+      .map(([date, d]) => ({ date: date.slice(5).replace('-', '/'), sessions: d.sessions, avgDuration: 0 }));
+  }, [games, getGameStats]);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">대시보드</h1>
-          <p className="text-dark-400 mt-1">MVP Agent 시스템 현황을 한눈에 확인하세요</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">대시보드</h1>
+            <p className="text-dark-400 mt-1">MVP Agent 시스템 현황을 한눈에 확인하세요</p>
+          </div>
+          <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full ${connected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-dark-700 text-dark-400'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-emerald-400 animate-pulse' : 'bg-dark-500'}`} />
+            {connected ? '실시간 연결' : '오프라인'}
+          </span>
         </div>
         <Link to="/pipeline" className="btn-primary">파이프라인 실행</Link>
       </div>
@@ -56,11 +98,11 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <motion.div variants={item} className="card">
-          <h2 className="text-lg font-semibold mb-4">일별 게임 생성 수</h2>
+          <h2 className="text-lg font-semibold mb-4">일별 방문 유저 (DAU)</h2>
           <DauChart data={dauData} />
         </motion.div>
         <motion.div variants={item} className="card">
-          <h2 className="text-lg font-semibold mb-4">일별 생성 현황</h2>
+          <h2 className="text-lg font-semibold mb-4">일별 플레이 세션</h2>
           <SessionChart data={sessionData} />
         </motion.div>
       </div>
@@ -82,7 +124,7 @@ export default function Dashboard() {
 
       <motion.div variants={item} className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">최근 생성된 게임</h2>
+          <h2 className="text-lg font-semibold">게임별 유저 현황</h2>
           {games.length > 0 && (
             <Link to="/games" className="text-sm text-primary-400 hover:text-primary-300">전체 보기</Link>
           )}
@@ -97,34 +139,43 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="space-y-2">
-            {games.slice(0, 5).map((game) => (
-              <Link
-                key={game.id || game.gameId}
-                to={`/game/${game.id || game.gameId}`}
-                className="flex items-center justify-between p-3 bg-dark-900/50 rounded-xl hover:bg-dark-800/50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">🎮</span>
-                  <div>
-                    <span className="font-medium">{game.title}</span>
-                    <p className="text-xs text-dark-500">{new Date(game.createdAt).toLocaleDateString('ko-KR')}</p>
+            {games.slice(0, 5).map((game) => {
+              const gid = game.id || game.gameId;
+              const gs = getGameStats(gid);
+              return (
+                <div
+                  key={gid}
+                  className="flex items-center justify-between p-3 bg-dark-900/50 rounded-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">🎮</span>
+                    <div>
+                      <span className="font-medium">{game.title}</span>
+                      <p className="text-xs text-dark-500">{game.genre}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-sm font-mono">{gs.uniqueVisitors} <span className="text-dark-500 text-xs">명</span></p>
+                      <p className="text-xs text-dark-500">{gs.totalSessions}세션 · 평균 {formatDuration(gs.avgDuration)}</p>
+                    </div>
+                    {gs.activeSessions > 0 && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 animate-pulse">
+                        {gs.activeSessions}명 접속 중
+                      </span>
+                    )}
+                    <a
+                      href={getPlayUrl(gid)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary-400 hover:text-primary-300 bg-primary-500/10 px-2.5 py-1 rounded-lg"
+                    >
+                      공유 링크
+                    </a>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-dark-400">{game.genre}</span>
-                  {game.scores && (
-                    <span className="text-xs font-mono text-dark-300">
-                      {Math.round((game.scores.gameplay + game.scores.visual + game.scores.replayability + game.scores.marketFit) / 4)}점
-                    </span>
-                  )}
-                  {game.decision && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${game.decision === 'go' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                      {game.decision.toUpperCase()}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </motion.div>

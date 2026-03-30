@@ -45,6 +45,7 @@
   │   │   ├── useAgentPipeline.js # 파이프라인 실행·제어 훅
   │   │   ├── useGameSync.js      # 유저별 게임 데이터 자동 동기화 훅
   │   │   ├── useRealMetrics.js   # 실제 게임 데이터 기반 지표 계산 훅
+  │   │   ├── usePlayMetrics.js   # 실시간 유저 플레이 지표 수신 훅 (SSE + polling)
   │   │   └── useFirestoreQuery.js # React Query 기반 Firestore 데이터 페칭 훅
   │   │
   │   ├── /components

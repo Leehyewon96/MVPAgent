@@ -28,3 +28,6 @@ ui-debug.log
 # Functions
 functions/node_modules
 functions/lib
+
+# Server data (play events)
+data/

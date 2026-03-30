@@ -159,3 +159,50 @@
   5. `structure.md`, `project_prompt_log.md` 업데이트
 - **소요 시간**: 약 5분 (16:00 ~ 16:05)
 
+---
+
+## #12
+- **시간**: 2026-03-30 16:15
+- **프롬프트**:
+  > 게임별로 전세계 유저들이 HTML링크에서 한 플레이 정보를 실시간으로 받아서 게임별 유저 지표를 표시하도록 해줘
+- **수행 내용**:
+  1. **dev-server.js 대폭 확장** — 유저 플레이 추적 시스템 구축:
+     - `POST /api/games`: 게임 HTML을 서버에 등록
+     - `GET /play/:gameId`: 트래킹 스크립트가 주입된 게임 HTML 서빙 (공유 가능한 외부 링크)
+     - `POST /api/play-events`: 유저 플레이 이벤트 수집 (session_start/heartbeat/pause/resume/session_end/game_event)
+     - `GET /api/game-stats`: 전체 게임 통합 통계
+     - `GET /api/game-stats/:gameId`: 게임별 상세 통계
+     - `GET /api/play-stream`: SSE(Server-Sent Events) 실시간 이벤트 스트림
+  2. **트래킹 스크립트 자동 주입** — 게임 HTML `</body>` 앞에 경량 트래킹 JS 삽입:
+     - 익명 방문자 ID 자동 생성 (localStorage 기반)
+     - 세션 시작/종료 자동 감지
+     - 15초 간격 heartbeat (활성 세션 판별)
+     - 탭 전환 감지 (pause/resume)
+     - `navigator.sendBeacon` 사용 (페이지 종료 시에도 데이터 전송 보장)
+     - `window._mvpTrack(name, data)` 글로벌 함수 (게임 코드에서 커스텀 이벤트 전송 가능)
+  3. **gameStore.js 서버 동기화** — `addGame` + `setUid` 로드 시 모든 게임을 자동으로 dev-server에 등록 (`POST /api/games`)
+  4. **usePlayMetrics.js 훅 생성** — SSE 실시간 연결 + 30초 폴링 fallback. 게임별 stats/공유 URL 조회 기능
+  5. **Dashboard.jsx 실시간 유저 지표** — 상단 통계: 전체 플레이어/세션/플레이시간. 실시간 연결 상태 표시. 게임별 방문자/세션/평균시간/현재접속 + 공유 링크
+  6. **GameLibrary.jsx 유저 지표 탭 추가** — 4번째 "유저 지표" 탭:
+     - Quick Stats (방문자/세션/평균플레이/현재접속)
+     - 일별 유저 추이 막대 그래프
+     - 공유 링크 (복사 버튼)
+     - 각 카드 헤더에 실시간 접속자 수 표시
+  7. **Reports.jsx "유저 분석" 탭 추가** — 전체 고유 방문자/세션/플레이시간/등록게임 통계 카드 + 게임별 유저 지표 테이블 (방문자/세션/평균플레이/현재접속)
+  8. `structure.md`, `project_prompt_log.md` 업데이트
+- **소요 시간**: 약 8분 (16:15 ~ 16:23)
+
+---
+
+## #13
+- **시간**: 2026-03-30 16:45
+- **프롬프트**:
+  > 공유링크 접속하면 Cannot GET 에러 / 접속자 수가 0으로 나옴
+- **수행 내용**:
+  1. **sendBeacon text/plain 파싱 수정** — `express.text()` 미들웨어 추가. 트래킹 스크립트가 `navigator.sendBeacon`으로 보내는 `text/plain` body를 서버가 파싱하지 못하던 버그 수정
+  2. **서버 게임 데이터 파일 영속화** — `data/games.json`, `data/events.json`에 게임/이벤트 저장. 서버 재시작 시 자동 복원 (`Loaded 2 games from disk`)
+  3. **서버 에러 핸들링 강화** — `server.on('error')`, `uncaughtException`, `unhandledRejection` 핸들러 추가
+  4. **프론트엔드 무한 반복 등록 수정** — `usePlayMetrics` 훅에서 SSE reconnect마다 게임을 중복 등록하던 문제 해결 (syncedRef + Zustand subscribe 패턴)
+  5. `.gitignore`에 `data/` 추가
+- **소요 시간**: 약 5분 (16:45 ~ 16:50)
+

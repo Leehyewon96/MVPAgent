@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DauChart from '../components/charts/DauChart';
@@ -6,6 +6,8 @@ import RetentionChart from '../components/charts/RetentionChart';
 import GenreComparisonChart from '../components/charts/GenreComparisonChart';
 import SessionChart from '../components/charts/SessionChart';
 import { useRealMetrics } from '../hooks/useRealMetrics';
+import { usePlayMetrics } from '../hooks/usePlayMetrics';
+import { useGameStore } from '../store/gameStore';
 
 const container = {
   hidden: { opacity: 0 },
@@ -18,23 +20,72 @@ const item = {
 
 const tabs = [
   { key: 'overview', label: '전체 개요' },
+  { key: 'players', label: '유저 분석' },
   { key: 'scores', label: '게임별 점수' },
   { key: 'genre', label: '장르별 비교' },
 ];
+
+function fmtDur(sec) {
+  if (!sec) return '0초';
+  if (sec < 60) return `${sec}초`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}분 ${sec % 60}초`;
+  return `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분`;
+}
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('overview');
   const {
     hasData,
-    statCards,
-    dauData,
-    sessionData,
+    statCards: agentStatCards,
+    dauData: agentDauData,
+    sessionData: agentSessionData,
     retentionData,
     retentionGameNames,
     genreRadarData,
     genreList,
     gameScoreComparison,
   } = useRealMetrics();
+  const { global, getGameStats, connected } = usePlayMetrics();
+  const games = useGameStore((s) => s.games);
+
+  const playerDauData = useMemo(() => {
+    const dailyMap = {};
+    games.forEach((g) => {
+      const gs = getGameStats(g.id || g.gameId);
+      (gs.dailyStats || []).forEach((d) => {
+        if (!dailyMap[d.date]) dailyMap[d.date] = 0;
+        dailyMap[d.date] += d.visitors;
+      });
+    });
+    return Object.entries(dailyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-7)
+      .map(([date, dau]) => ({ date: date.slice(5).replace('-', '/'), dau }));
+  }, [games, getGameStats]);
+
+  const playerSessionData = useMemo(() => {
+    const dailyMap = {};
+    games.forEach((g) => {
+      const gs = getGameStats(g.id || g.gameId);
+      (gs.dailyStats || []).forEach((d) => {
+        if (!dailyMap[d.date]) dailyMap[d.date] = { sessions: 0 };
+        dailyMap[d.date].sessions += d.sessions;
+      });
+    });
+    return Object.entries(dailyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-7)
+      .map(([date, d]) => ({ date: date.slice(5).replace('-', '/'), sessions: d.sessions, avgDuration: 0 }));
+  }, [games, getGameStats]);
+
+  const statCards = useMemo(() => {
+    const base = [...agentStatCards];
+    if (base.length >= 4) {
+      base[3] = { label: '전체 플레이어', value: global.uniqueVisitors, unit: '명', change: `${global.totalSessions} 세션`, positive: global.uniqueVisitors > 0 };
+      base[4] = { label: '총 플레이 시간', value: global.totalPlayTime > 0 ? fmtDur(global.totalPlayTime) : '0초', unit: '', change: '', positive: global.totalPlayTime > 0 };
+    }
+    return base;
+  }, [agentStatCards, global]);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -84,12 +135,80 @@ export default function Reports() {
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <motion.div variants={item} className="card">
-                <h2 className="text-lg font-semibold mb-4">일별 게임 생성 추이</h2>
-                <DauChart data={dauData} />
+                <h2 className="text-lg font-semibold mb-4">일별 방문 유저 (DAU)</h2>
+                <DauChart data={playerDauData} />
               </motion.div>
               <motion.div variants={item} className="card">
-                <h2 className="text-lg font-semibold mb-4">일별 생성 현황</h2>
-                <SessionChart data={sessionData} />
+                <h2 className="text-lg font-semibold mb-4">일별 플레이 세션</h2>
+                <SessionChart data={playerSessionData} />
+              </motion.div>
+            </div>
+          )}
+
+          {activeTab === 'players' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <motion.div variants={item} className="card !p-4 text-center">
+                  <p className="text-3xl font-bold text-primary-400">{global.uniqueVisitors}</p>
+                  <p className="text-xs text-dark-500 mt-1">전체 고유 방문자</p>
+                </motion.div>
+                <motion.div variants={item} className="card !p-4 text-center">
+                  <p className="text-3xl font-bold text-amber-400">{global.totalSessions}</p>
+                  <p className="text-xs text-dark-500 mt-1">전체 세션 수</p>
+                </motion.div>
+                <motion.div variants={item} className="card !p-4 text-center">
+                  <p className="text-3xl font-bold text-emerald-400">{fmtDur(global.totalPlayTime)}</p>
+                  <p className="text-xs text-dark-500 mt-1">총 플레이 시간</p>
+                </motion.div>
+                <motion.div variants={item} className="card !p-4 text-center">
+                  <p className="text-3xl font-bold text-cyan-400">{global.totalGames}</p>
+                  <p className="text-xs text-dark-500 mt-1">서버 등록 게임</p>
+                </motion.div>
+              </div>
+
+              <motion.div variants={item} className="card">
+                <h2 className="text-lg font-semibold mb-4">게임별 유저 지표</h2>
+                {games.length === 0 ? (
+                  <p className="text-center text-dark-500 py-8">게임이 없습니다</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-dark-700">
+                          <th className="text-left py-2 px-3 text-dark-400 font-medium">게임</th>
+                          <th className="text-right py-2 px-3 text-dark-400 font-medium">방문자</th>
+                          <th className="text-right py-2 px-3 text-dark-400 font-medium">세션</th>
+                          <th className="text-right py-2 px-3 text-dark-400 font-medium">평균 플레이</th>
+                          <th className="text-right py-2 px-3 text-dark-400 font-medium">현재 접속</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {games.map((g) => {
+                          const gid = g.id || g.gameId;
+                          const gs = getGameStats(gid);
+                          return (
+                            <tr key={gid} className="border-b border-dark-800 hover:bg-dark-800/30">
+                              <td className="py-2.5 px-3">
+                                <span className="font-medium">{g.title}</span>
+                                <span className="text-xs text-dark-500 ml-2">{g.genre}</span>
+                              </td>
+                              <td className="text-right py-2.5 px-3 font-mono">{gs.uniqueVisitors}</td>
+                              <td className="text-right py-2.5 px-3 font-mono">{gs.totalSessions}</td>
+                              <td className="text-right py-2.5 px-3 font-mono">{fmtDur(gs.avgDuration)}</td>
+                              <td className="text-right py-2.5 px-3">
+                                {gs.activeSessions > 0 ? (
+                                  <span className="text-emerald-400 font-mono animate-pulse">{gs.activeSessions}명</span>
+                                ) : (
+                                  <span className="text-dark-600">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </motion.div>
             </div>
           )}
