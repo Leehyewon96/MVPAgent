@@ -10,9 +10,11 @@ import Reports from './pages/Reports';
 import AgentPipeline from './pages/AgentPipeline';
 import GameLibrary from './pages/GameLibrary';
 import { useAuthStore } from './store/authStore';
+import { useGameSync } from './hooks/useGameSync';
 
 export default function App() {
   const initialized = useAuthStore((s) => s.initialized);
+  useGameSync();
 
   if (!initialized) {
     return (

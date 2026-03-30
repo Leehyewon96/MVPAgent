@@ -14,6 +14,7 @@ const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
 export default function GameLibrary() {
   const games = useGameStore((s) => s.games);
+  const loaded = useGameStore((s) => s.loaded);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -22,7 +23,12 @@ export default function GameLibrary() {
         <p className="text-dark-400 mt-1">파이프라인에서 생성된 게임 목록을 관리합니다</p>
       </div>
 
-      {games.length === 0 ? (
+      {!loaded ? (
+        <div className="card text-center py-16">
+          <div className="w-8 h-8 border-2 border-primary-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-dark-400">게임 데이터 불러오는 중…</p>
+        </div>
+      ) : games.length === 0 ? (
         <motion.div variants={item} className="card text-center py-16">
           <p className="text-5xl mb-4">🎮</p>
           <p className="text-lg font-medium text-dark-300">생성된 게임이 없습니다</p>

@@ -116,3 +116,22 @@
   4. `structure.md` 업데이트
 - **소요 시간**: 약 2분 (15:44 ~ 15:46)
 
+---
+
+## #10
+- **시간**: 2026-03-30 15:50
+- **프롬프트**:
+  > http://localhost:3000 이 창 새로 열면 만들었던 게임관련 정보가 다 없는데 이거 계정별로 다 저장해서 유지되게 해줘
+- **수행 내용**:
+  1. **gameStore.js 영속화 구현** — 게임 데이터를 계정(uid)별로 자동 저장·로드:
+     - Firebase 연결 시: Firestore `users/{uid}/games` 컬렉션에 게임별 문서로 저장/조회
+     - Dev Mode: `localStorage`에 유저별 키(`mvpagent_games_{uid}`)로 저장/조회
+     - localStorage에만 데이터가 있을 경우 Firestore로 자동 마이그레이션
+     - `addGame` 시 Firestore + localStorage 동시 저장 (이중 백업)
+     - `removeGame` 기능 추가 (Firestore + localStorage 동기 삭제)
+  2. **useGameSync.js 훅 생성** — `useAuthStore`의 유저 상태를 감시, 로그인/로그아웃 시 `gameStore.setUid(uid)` 호출하여 게임 데이터 자동 동기화
+  3. **App.jsx에 useGameSync 연결** — 앱 최상위에서 유저-게임 데이터 동기화 실행
+  4. **GameLibrary.jsx 로딩 상태 추가** — 데이터 로드 완료 전 로딩 스피너 표시
+  5. `structure.md`, `project_prompt_log.md` 업데이트
+- **소요 시간**: 약 3분 (15:50 ~ 15:53)
+
