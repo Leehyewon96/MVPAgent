@@ -1,12 +1,10 @@
 /**
  * Judge Agent
  * 유저 지표를 수집·분석하고 Go/No-Go 판단을 내린다.
- * 수집 항목: 플레이 시간, 세션 수, 리텐션, 이벤트 빈도 등
  */
 
 import { useAgentStore } from '../store/agentStore';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase/config';
+import { isConfigured } from '../firebase/config';
 
 export class JudgeAgent {
   log(message) {
@@ -16,15 +14,21 @@ export class JudgeAgent {
   async evaluate(devResult) {
     this.log(`게임 "${devResult.title}" 평가 시작`);
 
-    try {
-      const evaluate = httpsCallable(functions, 'evaluateGame');
-      const result = await evaluate({ gameId: devResult.gameId });
-      this.log(`평가 완료: ${result.data.decision}`);
-      return result.data;
-    } catch (error) {
-      this.log('Cloud Function 미연결 — 목업 평가 반환');
-      return this.getMockEvaluation(devResult);
+    if (isConfigured) {
+      try {
+        const { functions } = await import('../firebase/config');
+        const { httpsCallable } = await import('firebase/functions');
+        const result = await httpsCallable(functions, 'evaluateGame')({ gameId: devResult.gameId });
+        this.log(`평가 완료: ${result.data.decision}`);
+        return result.data;
+      } catch (error) {
+        this.log('Cloud Function 호출 실패 — 목업 평가 반환');
+      }
+    } else {
+      this.log('Dev Mode — 목업 평가 사용');
     }
+
+    return this.getMockEvaluation(devResult);
   }
 
   getMockEvaluation(devResult) {

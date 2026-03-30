@@ -2,13 +2,10 @@
  * Plan Agent
  * 선정된 주제를 기반으로 게임 시스템 기획서 및 게임 콘텐츠 기획서를 자동 작성한다.
  * 출력: .md 형식의 기획 문서
- *
- * 실제 구현 시 Firebase Cloud Functions를 통해 LLM을 호출하여 기획서를 생성한다.
  */
 
 import { useAgentStore } from '../store/agentStore';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase/config';
+import { isConfigured } from '../firebase/config';
 
 export class PlanAgent {
   log(message) {
@@ -25,15 +22,22 @@ export class PlanAgent {
 
     this.log(`선정 주제: ${bestTopic.keyword} (스코어: ${bestTopic.score})`);
 
-    try {
-      const generatePlan = httpsCallable(functions, 'generateGamePlan');
-      const result = await generatePlan({ topic: bestTopic });
-      this.log('기획 문서 생성 완료');
-      return result.data;
-    } catch (error) {
-      this.log('Cloud Function 미연결 — 목업 기획서 반환');
-      return this.getMockPlan(bestTopic);
+    if (isConfigured) {
+      try {
+        const { functions } = await import('../firebase/config');
+        const { httpsCallable } = await import('firebase/functions');
+        const generatePlan = httpsCallable(functions, 'generateGamePlan');
+        const result = await generatePlan({ topic: bestTopic });
+        this.log('기획 문서 생성 완료');
+        return result.data;
+      } catch (error) {
+        this.log('Cloud Function 호출 실패 — 목업 기획서 반환');
+      }
+    } else {
+      this.log('Dev Mode — 목업 기획서 사용');
     }
+
+    return this.getMockPlan(bestTopic);
   }
 
   getMockPlan(topic) {

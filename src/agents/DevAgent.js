@@ -2,13 +2,10 @@
  * Dev Agent
  * 기획 문서를 입력으로 받아 실행 가능한 웹 게임을 구현한다.
  * 하위 역할: 클라이언트, 서버, DBA, 에셋 생성, QA/테스트, 보안/어뷰징, 빌드
- *
- * 실제 구현 시 Firebase Cloud Functions를 통해 LLM 기반 코드 생성이 이루어진다.
  */
 
 import { useAgentStore } from '../store/agentStore';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase/config';
+import { isConfigured } from '../firebase/config';
 
 export class DevAgent {
   log(message) {
@@ -44,24 +41,28 @@ export class DevAgent {
   }
 
   async generateClient(planData) {
-    try {
-      const generate = httpsCallable(functions, 'generateGameClient');
-      return (await generate({ plan: planData })).data;
-    } catch {
-      return { status: 'mock', message: '클라이언트 코드 생성됨 (목업)' };
+    if (isConfigured) {
+      try {
+        const { functions } = await import('../firebase/config');
+        const { httpsCallable } = await import('firebase/functions');
+        return (await httpsCallable(functions, 'generateGameClient')({ plan: planData })).data;
+      } catch { /* fallthrough to mock */ }
     }
+    return { status: 'mock', message: '클라이언트 코드 생성됨 (목업)' };
   }
 
   async generateServer(planData) {
-    try {
-      const generate = httpsCallable(functions, 'generateGameServer');
-      return (await generate({ plan: planData })).data;
-    } catch {
-      return { status: 'mock', message: '서버 로직 생성됨 (목업)' };
+    if (isConfigured) {
+      try {
+        const { functions } = await import('../firebase/config');
+        const { httpsCallable } = await import('firebase/functions');
+        return (await httpsCallable(functions, 'generateGameServer')({ plan: planData })).data;
+      } catch { /* fallthrough to mock */ }
     }
+    return { status: 'mock', message: '서버 로직 생성됨 (목업)' };
   }
 
-  async generateAssets(planData) {
+  async generateAssets() {
     return { status: 'mock', message: '에셋 생성 완료 (목업)' };
   }
 

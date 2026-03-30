@@ -1,9 +1,11 @@
 import { Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
+import { useAuthStore } from '../store/authStore';
 
 export default function Login() {
   const { isAuthenticated, signInWithGoogle, loading, error } = useAuth();
+  const devMode = useAuthStore((s) => s.devMode);
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
@@ -59,7 +61,13 @@ export default function Login() {
             {loading ? '로그인 중...' : 'Google 계정으로 로그인'}
           </button>
 
-          <p className="mt-6 text-xs text-dark-500">
+          {devMode && (
+            <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-xs">
+              Dev Mode — Firebase 미연결 상태. 테스트 계정으로 로그인됩니다.
+            </div>
+          )}
+
+          <p className="mt-4 text-xs text-dark-500">
             로그인하면 개발자 대시보드에 접근할 수 있습니다
           </p>
         </div>

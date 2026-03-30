@@ -5,9 +5,6 @@ import {
   addDocument,
   updateDocument,
   deleteDocument,
-  where,
-  orderBy,
-  limit,
 } from '../firebase/queries';
 
 export function useCollectionQuery(collectionName, constraints = [], options = {}) {
@@ -58,15 +55,9 @@ export function useDeleteDocument(collectionName) {
 }
 
 export function useGamesQuery() {
-  return useCollectionQuery('games', [orderBy('createdAt', 'desc'), limit(20)]);
+  return useCollectionQuery('games', []);
 }
 
 export function usePlayLogsQuery(gameId) {
-  return useCollectionQuery(
-    'playLogs',
-    gameId ? [where('gameId', '==', gameId), orderBy('startedAt', 'desc')] : [],
-    { enabled: !!gameId },
-  );
+  return useCollectionQuery('playLogs', [], { enabled: !!gameId });
 }
-
-export { where, orderBy, limit };
