@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import GamePlayer from './pages/GamePlayer';
@@ -21,19 +22,21 @@ export default function App() {
   }
 
   return (
-    <AnimatePresence mode="wait">
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route element={<ProtectedRoute />}>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/game/:gameId" element={<GamePlayer />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/pipeline" element={<AgentPipeline />} />
+    <ErrorBoundary>
+      <AnimatePresence mode="wait">
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route element={<ProtectedRoute />}>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/game/:gameId" element={<GamePlayer />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/pipeline" element={<AgentPipeline />} />
+            </Route>
           </Route>
-        </Route>
-      </Routes>
-    </AnimatePresence>
+        </Routes>
+      </AnimatePresence>
+    </ErrorBoundary>
   );
 }
