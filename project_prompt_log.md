@@ -36,3 +36,22 @@
   > 방금 이작업 @project_prompt_log.md 에 저장해줘
 - **수행 내용**: #3, #4 프롬프트 로그 기록
 - **소요 시간**: 약 1분
+
+---
+
+## #5
+- **시간**: 2026-03-30 14:10
+- **프롬프트**:
+  > .env.local 값을 채우고 http://localhost:3000에 접속하면 첨부한 이미지처럼 배경만 뜨는데?
+  > 흰색 화면만 나와 지금 이거 유효하게 잘 작동하는지 테스트 해줘
+- **수행 내용**: Firebase 초기화 흰 화면 이슈 2차 수정. (1) firebase/config.js에서 top-level await 제거 → 정적 import로 전환, initializeApp을 try-catch로 감싸 에러 방어. (2) VITE_FIREBASE_DATABASE_URL 값이 Google Analytics ID로 잘못 입력된 것 발견 → URL 검증 로직 추가 (https:// 접두사 확인). (3) authStore에 3초 타임아웃 fallback 추가, onAuthStateChanged를 정적 import로 변경. (4) queries.js 정적 import 복원. (5) 모든 Agent 정적 import 통일. (6) App.jsx 로딩 스피너 가시성 개선. (7) 포트 충돌 해결 후 서버 재시작.
+- **소요 시간**: 약 10분 (14:10 ~ 14:20)
+
+---
+
+## #6
+- **시간**: 2026-03-30 14:37
+- **프롬프트**:
+  > 이 내용 @project_prompt_log.md 에 넣어주고 앞으로 너가 작업을 할때마다 너가 한 작업들에 대한 내용을 정리해서 @project_prompt_log.md 에 넣어줘 따로 내가 프롬프트 추가해달라고 안해도. 이 규칙도 @.cursor/rules/update-structure.mdc 랑 @AGENTS.md 에 반영해서 수정해줘
+- **수행 내용**: 자동 로깅 규칙 적용 — AGENTS.md, .cursor/rules Cursor 규칙, project_prompt_log.md 업데이트. 이후 모든 작업은 자동으로 로그에 기록됨.
+- **소요 시간**: 약 1분

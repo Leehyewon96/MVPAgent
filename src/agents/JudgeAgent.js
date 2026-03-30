@@ -4,7 +4,7 @@
  */
 
 import { useAgentStore } from '../store/agentStore';
-import { isConfigured } from '../firebase/config';
+import { isConfigured, functions } from '../firebase/config';
 
 export class JudgeAgent {
   log(message) {
@@ -16,7 +16,6 @@ export class JudgeAgent {
 
     if (isConfigured) {
       try {
-        const { functions } = await import('../firebase/config');
         const { httpsCallable } = await import('firebase/functions');
         const result = await httpsCallable(functions, 'evaluateGame')({ gameId: devResult.gameId });
         this.log(`평가 완료: ${result.data.decision}`);

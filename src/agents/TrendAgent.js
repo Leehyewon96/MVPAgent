@@ -5,7 +5,7 @@
  */
 
 import { useAgentStore } from '../store/agentStore';
-import { isConfigured } from '../firebase/config';
+import { isConfigured, functions } from '../firebase/config';
 
 export class TrendAgent {
   log(message) {
@@ -17,7 +17,6 @@ export class TrendAgent {
 
     if (isConfigured) {
       try {
-        const { functions } = await import('../firebase/config');
         const { httpsCallable } = await import('firebase/functions');
         const analyzeTrends = httpsCallable(functions, 'analyzeTrends');
         const result = await analyzeTrends();

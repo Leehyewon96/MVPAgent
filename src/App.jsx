@@ -15,8 +15,9 @@ export default function App() {
 
   if (!initialized) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <div className="w-10 h-10 border-3 border-primary-400 border-t-transparent rounded-full animate-spin" />
+        <p className="text-dark-400 text-sm">초기화 중...</p>
       </div>
     );
   }

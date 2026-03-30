@@ -5,7 +5,7 @@
  */
 
 import { useAgentStore } from '../store/agentStore';
-import { isConfigured } from '../firebase/config';
+import { isConfigured, functions } from '../firebase/config';
 
 export class DevAgent {
   log(message) {
@@ -43,7 +43,6 @@ export class DevAgent {
   async generateClient(planData) {
     if (isConfigured) {
       try {
-        const { functions } = await import('../firebase/config');
         const { httpsCallable } = await import('firebase/functions');
         return (await httpsCallable(functions, 'generateGameClient')({ plan: planData })).data;
       } catch { /* fallthrough to mock */ }
@@ -54,7 +53,6 @@ export class DevAgent {
   async generateServer(planData) {
     if (isConfigured) {
       try {
-        const { functions } = await import('../firebase/config');
         const { httpsCallable } = await import('firebase/functions');
         return (await httpsCallable(functions, 'generateGameServer')({ plan: planData })).data;
       } catch { /* fallthrough to mock */ }

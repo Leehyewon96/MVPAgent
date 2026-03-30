@@ -1,5 +1,5 @@
 ---
-description: 파일/폴더 추가·삭제·이동 시 structure.md를 항상 최신 상태로 동기화한다
+description: 파일/폴더 변경 시 structure.md 동기화 + 모든 작업 완료 시 project_prompt_log.md 자동 기록
 alwaysApply: true
 ---
 
@@ -28,3 +28,19 @@ alwaysApply: true
   ├── /하위폴더
   │   └── 파일명.확장자     # 간단한 설명
 ```
+
+---
+
+# project_prompt_log.md 자동 기록 규칙
+
+**모든 작업이 끝나면 반드시 `project_prompt_log.md`에 기록한다.** 사용자가 요청하지 않아도 자동으로 기록해야 한다.
+
+## 기록 항목
+
+| 항목 | 설명 |
+|------|------|
+| 번호 | `## #N` 형식, 순차 증가 |
+| 시간 | 실제 시스템 시간 (yyyy-MM-dd HH:mm) |
+| 프롬프트 | 사용자가 입력한 원문 (인용 블록) |
+| 수행 내용 | 작업 결과 요약 |
+| 소요 시간 | 시작 ~ 종료 시간 |

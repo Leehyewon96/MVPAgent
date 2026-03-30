@@ -5,7 +5,7 @@
  */
 
 import { useAgentStore } from '../store/agentStore';
-import { isConfigured } from '../firebase/config';
+import { isConfigured, functions } from '../firebase/config';
 
 export class PlanAgent {
   log(message) {
@@ -24,7 +24,6 @@ export class PlanAgent {
 
     if (isConfigured) {
       try {
-        const { functions } = await import('../firebase/config');
         const { httpsCallable } = await import('firebase/functions');
         const generatePlan = httpsCallable(functions, 'generateGamePlan');
         const result = await generatePlan({ topic: bestTopic });

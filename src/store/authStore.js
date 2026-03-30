@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-
-const isFirebaseConfigured = Boolean(import.meta.env.VITE_FIREBASE_API_KEY);
+import { isConfigured, auth } from '../firebase/config';
+import { onAuthStateChanged } from 'firebase/auth';
 
 function createDevStore(set) {
   setTimeout(() => set({ initialized: true }), 100);
@@ -35,9 +35,22 @@ function createDevStore(set) {
 }
 
 function createFirebaseStore(set) {
-  import('../firebase/config').then(({ auth }) => {
-    import('firebase/auth').then(({ onAuthStateChanged }) => {
+  let resolved = false;
+
+  const resolve = () => {
+    if (!resolved) {
+      resolved = true;
+      set((state) => (state.initialized ? state : { initialized: true }));
+    }
+  };
+
+  // Auth 상태 감지가 3초 안에 안 되면 강제로 initialized 처리
+  setTimeout(resolve, 3000);
+
+  if (auth) {
+    try {
       onAuthStateChanged(auth, (user) => {
+        resolved = true;
         set({
           user: user
             ? { uid: user.uid, email: user.email, displayName: user.displayName, photoURL: user.photoURL }
@@ -45,8 +58,13 @@ function createFirebaseStore(set) {
           initialized: true,
         });
       });
-    });
-  });
+    } catch (error) {
+      console.error('Auth listener failed:', error);
+      resolve();
+    }
+  } else {
+    resolve();
+  }
 
   return {
     user: null,
@@ -58,7 +76,6 @@ function createFirebaseStore(set) {
     signInWithGoogle: async () => {
       set({ loading: true, error: null });
       try {
-        const { auth } = await import('../firebase/config');
         const { signInWithPopup, GoogleAuthProvider } = await import('firebase/auth');
         await signInWithPopup(auth, new GoogleAuthProvider());
       } catch (error) {
@@ -71,7 +88,6 @@ function createFirebaseStore(set) {
     signOut: async () => {
       set({ loading: true });
       try {
-        const { auth } = await import('../firebase/config');
         const { signOut: firebaseSignOut } = await import('firebase/auth');
         await firebaseSignOut(auth);
       } catch (error) {
@@ -84,5 +100,5 @@ function createFirebaseStore(set) {
 }
 
 export const useAuthStore = create((set) =>
-  isFirebaseConfigured ? createFirebaseStore(set) : createDevStore(set),
+  isConfigured ? createFirebaseStore(set) : createDevStore(set),
 );
