@@ -63,7 +63,8 @@
   │   │   ├── Dashboard.jsx       # 메인 대시보드 (통계, 차트, Agent 상태, 게임 목록)
   │   │   ├── GamePlayer.jsx      # 게임 플레이어 (세션 추적)
   │   │   ├── Reports.jsx         # 지표 분석 (탭: 개요/리텐션/장르 비교)
-  │   │   └── AgentPipeline.jsx   # Agent 파이프라인 실행·결과 관리 UI
+  │   │   ├── AgentPipeline.jsx   # Agent 파이프라인 실행·결과 관리 UI
+  │   │   └── GameLibrary.jsx     # 게임 라이브러리 (주제/기획서/게임 탭)
   │   │
   │   ├── /agents
   │   │   ├── OrchestratorAgent.js  # 전체 파이프라인 흐름 제어

@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import GamePlayer from './pages/GamePlayer';
 import Reports from './pages/Reports';
 import AgentPipeline from './pages/AgentPipeline';
+import GameLibrary from './pages/GameLibrary';
 import { useAuthStore } from './store/authStore';
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/game/:gameId" element={<GamePlayer />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/pipeline" element={<AgentPipeline />} />
+              <Route path="/games" element={<GameLibrary />} />
             </Route>
           </Route>
         </Routes>

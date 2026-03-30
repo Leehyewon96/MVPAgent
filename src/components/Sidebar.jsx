@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 const navItems = [
   { to: '/dashboard', label: '대시보드', icon: '📊' },
   { to: '/pipeline', label: 'Agent 파이프라인', icon: '🤖' },
+  { to: '/games', label: '게임 라이브러리', icon: '🎮' },
   { to: '/reports', label: '지표 분석', icon: '📈' },
 ];
 
