@@ -66,15 +66,19 @@
   │   │   └── AgentPipeline.jsx   # Agent 파이프라인 실행·결과 관리 UI
   │   │
   │   ├── /agents
-  │   │   ├── OrchestratorAgent.js  # 전체 파이프라인 흐름 제어 (딜레이 포함)
-  │   │   ├── TrendAgent.js         # 트렌드 분석 (외부 소스 탐색)
-  │   │   ├── PlanAgent.js          # 기획 문서 자동 작성
-  │   │   ├── DevAgent.js           # 게임 자동 구현
-  │   │   └── JudgeAgent.js         # Go/No-Go 판단
+  │   │   ├── OrchestratorAgent.js  # 전체 파이프라인 흐름 제어
+  │   │   ├── TrendAgent.js         # 트렌드 분석 (Claude API → 실제 분석)
+  │   │   ├── PlanAgent.js          # 기획 문서 자동 작성 (Claude API → 실제 기획서)
+  │   │   ├── DevAgent.js           # HTML5 게임 자동 구현 (Claude API → 실제 코드 생성)
+  │   │   └── JudgeAgent.js         # Go/No-Go 판단 (Claude API → 실제 평가)
   │   │
   │   └── /utils
   │       ├── analytics.js        # 리텐션, DAU, 세션 분석 유틸
+  │       ├── download.js         # 파일 다운로드 유틸 (MD/JSON/HTML + 트렌드·기획서 변환)
   │       └── logger.js           # 로그 관리 (레벨별, Firebase 연동)
+  │
+  ├── /server
+  │   └── dev-server.js             # 로컬 API 서버 (Express + Anthropic Claude)
   │
   └── /functions
       ├── package.json            # Cloud Functions 의존성

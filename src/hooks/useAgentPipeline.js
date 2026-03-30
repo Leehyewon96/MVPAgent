@@ -7,8 +7,7 @@ export function useAgentPipeline() {
   const pipelineStatus = useAgentStore((s) => s.pipelineStatus);
   const agents = useAgentStore((s) => s.agents);
   const resetPipeline = useAgentStore((s) => s.resetPipeline);
-  const setGames = useGameStore((s) => s.setGames);
-  const games = useGameStore((s) => s.games);
+  const addGame = useGameStore((s) => s.addGame);
   const orchestratorRef = useRef(null);
 
   const start = useCallback(async () => {
@@ -22,16 +21,18 @@ export function useAgentPipeline() {
       const result = await orchestratorRef.current.runPipeline();
 
       if (result?.dev) {
-        setGames([
-          ...games,
-          {
-            id: result.dev.gameId,
-            title: result.dev.title,
-            genre: result.dev.genre,
-            createdAt: result.dev.createdAt,
-            decision: result.judge?.decision,
-          },
-        ]);
+        addGame({
+          id: result.dev.gameId,
+          gameId: result.dev.gameId,
+          title: result.dev.title,
+          genre: result.dev.genre,
+          code: result.dev.code,
+          buildStatus: result.dev.buildStatus,
+          createdAt: result.dev.createdAt,
+          decision: result.judge?.decision,
+          scores: result.judge?.scores,
+          plan: result.dev.plan,
+        });
       }
 
       return result;
@@ -39,17 +40,12 @@ export function useAgentPipeline() {
       console.error('Pipeline failed:', error);
       throw error;
     }
-  }, [pipelineStatus, games, setGames]);
+  }, [pipelineStatus, addGame]);
 
   const reset = useCallback(() => {
     orchestratorRef.current = null;
     resetPipeline();
   }, [resetPipeline]);
 
-  return {
-    start,
-    reset,
-    pipelineStatus,
-    agents,
-  };
+  return { start, reset, pipelineStatus, agents };
 }

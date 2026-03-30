@@ -7,10 +7,16 @@ export const useGameStore = create((set, get) => ({
 
   setGames: (games) => set({ games }),
 
+  addGame: (game) => set((state) => ({ games: [game, ...state.games] })),
+
   setCurrentGame: (game) => set({ currentGame: game }),
 
+  getGameById: (gameId) => get().games.find((g) => g.id === gameId || g.gameId === gameId),
+
   startPlaySession: (gameId) => {
+    const game = get().getGameById(gameId);
     set({
+      currentGame: game || null,
       playSession: {
         gameId,
         startedAt: Date.now(),

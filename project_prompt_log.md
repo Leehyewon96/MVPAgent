@@ -55,3 +55,38 @@
   > 이 내용 @project_prompt_log.md 에 넣어주고 앞으로 너가 작업을 할때마다 너가 한 작업들에 대한 내용을 정리해서 @project_prompt_log.md 에 넣어줘 따로 내가 프롬프트 추가해달라고 안해도. 이 규칙도 @.cursor/rules/update-structure.mdc 랑 @AGENTS.md 에 반영해서 수정해줘
 - **수행 내용**: 자동 로깅 규칙 적용 — AGENTS.md, .cursor/rules Cursor 규칙, project_prompt_log.md 업데이트. 이후 모든 작업은 자동으로 로그에 기록됨.
 - **소요 시간**: 약 1분
+
+---
+
+## #7
+- **시간**: 2026-03-30 14:55
+- **프롬프트**:
+  > 이거 실제로 파이프라인 시작 버튼 누르면 실제로 시장조사-기획-개발 까지 실제로 실행되게 해줘
+- **수행 내용**:
+  1. **로컬 API 서버 구축** (`server/dev-server.js`) — Express + Anthropic Claude SDK 기반. 4개 엔드포인트: 트렌드 분석, 기획서 생성, 게임 코드 생성, 게임 평가
+  2. **TrendAgent 실연동** — Claude API로 실제 게임 트렌드 3개를 분석·반환
+  3. **PlanAgent 실연동** — Claude API로 실제 시스템/콘텐츠 기획서 자동 생성
+  4. **DevAgent 실연동** — Claude API로 실제 플레이 가능한 HTML5 Canvas 게임 코드 생성 (단일 HTML 파일). API 실패 시 기본 슈팅 게임 fallback 포함
+  5. **JudgeAgent 실연동** — Claude API로 게임 품질 4개 항목 점수 평가 + Go/No-Go 판정
+  6. **GamePlayer iframe 렌더링** — 생성된 HTML 게임 코드를 Blob URL로 변환하여 iframe에서 실제 플레이 가능하도록 구현
+  7. **gameStore 확장** — `addGame`, `getGameById` 추가. 게임 코드(code) 필드 저장
+  8. **useAgentPipeline 훅 수정** — 파이프라인 완료 시 게임 코드 포함하여 store에 저장
+  9. **npm scripts** — `npm run dev`로 Vite + API 서버 동시 실행 (concurrently)
+  10. 의존성 추가: `@anthropic-ai/sdk`, `express`, `cors`, `dotenv`, `concurrently`
+- **소요 시간**: 약 4분 (14:55 ~ 14:59)
+
+---
+
+## #8
+- **시간**: 2026-03-30 15:33
+- **프롬프트**:
+  > http://localhost:3000 이 페이지의 각 Agent 파이프라인에서 만들어진 결과물을 개발자가 볼 수 있게 해줘. 시장조사 Agent는 본인이 찾은 트렌드 내용을 정리한걸 보여주고 기획 Agent는 본인이 작성한 기획서를 보여주도록해 자료를 각각 다운받을 수도 있게 해줘
+- **수행 내용**:
+  1. **download.js 유틸리티** 생성 — MD/JSON/HTML 다운로드 함수 + 트렌드 결과→마크다운, 기획서→마크다운 변환 함수
+  2. **AgentPipeline.jsx 전면 개편** — 각 Agent별 상세 결과 패널 구현:
+     - **시장조사**: 트렌드 카드(키워드, 출처, 스코어 바, 설명, 게임 아이디어) + MD/JSON 다운로드
+     - **기획**: 시스템 기획서(장르, 코어 루프, 조작법, 메카닉 태그) + 콘텐츠 기획서(테마, 적/아이템 태그, 색상) + MD/JSON 다운로드
+     - **개발**: 빌드 정보 + HTML 게임 코드 다운로드 + 게임 플레이 링크
+     - **판단**: Go/No-Go 판정 + 4개 항목 점수 프로그레스 바 애니메이션 + 개선 제안 태그 + JSON 다운로드
+  3. 접기/펼치기 토글 + AnimatePresence 애니메이션 적용
+- **소요 시간**: 약 2분 (15:33 ~ 15:35)
