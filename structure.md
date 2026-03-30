@@ -44,6 +44,7 @@
   │   │   ├── useGameSession.js   # 게임 세션 관리 훅
   │   │   ├── useAgentPipeline.js # 파이프라인 실행·제어 훅
   │   │   ├── useGameSync.js      # 유저별 게임 데이터 자동 동기화 훅
+  │   │   ├── useRealMetrics.js   # 실제 게임 데이터 기반 지표 계산 훅
   │   │   └── useFirestoreQuery.js # React Query 기반 Firestore 데이터 페칭 훅
   │   │
   │   ├── /components

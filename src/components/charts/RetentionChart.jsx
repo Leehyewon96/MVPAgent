@@ -9,16 +9,7 @@ import {
   Legend,
 } from 'recharts';
 
-const DEMO_DATA = [
-  { day: 'D0', game1: 100, game2: 100, game3: 100 },
-  { day: 'D1', game1: 42, game2: 38, game3: 55 },
-  { day: 'D3', game1: 28, game2: 22, game3: 35 },
-  { day: 'D7', game1: 18, game2: 12, game3: 24 },
-  { day: 'D14', game1: 12, game2: 7, game3: 18 },
-  { day: 'D30', game1: 8, game2: 4, game3: 13 },
-];
-
-const COLORS = ['#6366f1', '#f59e0b', '#10b981'];
+const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#f43f5e', '#06b6d4'];
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -27,7 +18,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       <p className="text-xs text-dark-400 mb-1">{label}</p>
       {payload.map((entry, i) => (
         <p key={i} className="text-xs" style={{ color: entry.color }}>
-          {entry.name}: {entry.value}%
+          {entry.name}: {entry.value}점
         </p>
       ))}
     </div>
@@ -35,27 +26,41 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function RetentionChart({ data, gameNames }) {
-  const chartData = data?.length > 0 ? data : DEMO_DATA;
-  const names = gameNames || ['좀비 서바이벌', '뱀파이어 서바이벌', '이세계 방치형'];
+  if (!data?.length || !gameNames?.length) {
+    return (
+      <div className="flex items-center justify-center h-[280px] text-dark-500 text-sm">
+        <p>게임을 생성하면 점수 비교 데이터가 표시됩니다</p>
+      </div>
+    );
+  }
+
+  const gameKeys = gameNames.map((_, i) => `game${i + 1}`);
 
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <LineChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+      <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
         <XAxis dataKey="day" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
         <YAxis
           tick={{ fill: '#64748b', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
-          tickFormatter={(v) => `${v}%`}
+          tickFormatter={(v) => `${v}점`}
+          domain={[0, 100]}
         />
         <Tooltip content={<CustomTooltip />} />
-        <Legend
-          wrapperStyle={{ fontSize: 11, color: '#94a3b8' }}
-        />
-        <Line type="monotone" dataKey="game1" name={names[0]} stroke={COLORS[0]} strokeWidth={2} dot={{ r: 3 }} />
-        <Line type="monotone" dataKey="game2" name={names[1]} stroke={COLORS[1]} strokeWidth={2} dot={{ r: 3 }} />
-        <Line type="monotone" dataKey="game3" name={names[2]} stroke={COLORS[2]} strokeWidth={2} dot={{ r: 3 }} />
+        <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
+        {gameKeys.map((key, i) => (
+          <Line
+            key={key}
+            type="monotone"
+            dataKey={key}
+            name={gameNames[i]}
+            stroke={COLORS[i % COLORS.length]}
+            strokeWidth={2}
+            dot={{ r: 3 }}
+          />
+        ))}
       </LineChart>
     </ResponsiveContainer>
   );
