@@ -253,7 +253,7 @@ function PlanResult({ result, expanded, toggle }) {
                   <div>
                     <span className="text-xs text-dark-500">적 목록</span>
                     <div className="flex flex-wrap gap-1.5 mt-1">
-                      {con.enemies.map((e, i) => <span key={i} className="text-xs px-2.5 py-1 bg-red-500/10 text-red-400 rounded-lg">{e}</span>)}
+                      {con.enemies.map((e, i) => <span key={i} className="text-xs px-2.5 py-1 bg-red-500/10 text-red-400 rounded-lg">{typeof e === 'object' ? e.name : e}</span>)}
                     </div>
                   </div>
                 )}
@@ -261,7 +261,7 @@ function PlanResult({ result, expanded, toggle }) {
                   <div>
                     <span className="text-xs text-dark-500">아이템 목록</span>
                     <div className="flex flex-wrap gap-1.5 mt-1">
-                      {con.items.map((it, i) => <span key={i} className="text-xs px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg">{it}</span>)}
+                      {con.items.map((it, i) => <span key={i} className="text-xs px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg">{typeof it === 'object' ? it.name : it}</span>)}
                     </div>
                   </div>
                 )}

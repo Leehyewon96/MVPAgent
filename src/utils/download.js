@@ -88,13 +88,25 @@ export function planResultToMarkdown(result) {
 
   if (con.enemies?.length) {
     lines.push('### 적 목록', '');
-    con.enemies.forEach((e) => lines.push(`- ${e}`));
+    con.enemies.forEach((e) => {
+      if (typeof e === 'object') {
+        lines.push(`- **${e.name}** — HP: ${e.hp}, 속도: ${e.speed}, 공격력: ${e.attackPower}, 출현 간격: ${e.spawnInterval}ms, 점수: ${e.score}`);
+      } else {
+        lines.push(`- ${e}`);
+      }
+    });
     lines.push('');
   }
 
   if (con.items?.length) {
     lines.push('### 아이템 목록', '');
-    con.items.forEach((it) => lines.push(`- ${it}`));
+    con.items.forEach((it) => {
+      if (typeof it === 'object') {
+        lines.push(`- **${it.name}** — 효과: ${it.effect}, 드롭 확률: ${(it.dropChance * 100).toFixed(0)}%${it.duration ? `, 지속: ${it.duration}ms` : ''}`);
+      } else {
+        lines.push(`- ${it}`);
+      }
+    });
     lines.push('');
   }
 

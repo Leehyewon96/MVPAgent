@@ -16,7 +16,9 @@
   │
   ├── /docs
   │   ├── MVP_Agent_propos.md     # 시스템 요구사항 및 Agent 설계 원본
-  │   └── project_rules.md        # 프로젝트 운영 규칙
+  │   ├── project_rules.md        # 프로젝트 운영 규칙
+  │   ├── portfolio.md            # 포트폴리오 문서 (취업·지원용)
+  │   └── presentation.md         # 프로젝트 발표 자료 (스펙/기술스택/아키텍처 정리)
   │
   ├── /public
   │   └── vite.svg                # 파비콘 SVG
@@ -74,7 +76,12 @@
   │   │   ├── TrendAgent.js         # 트렌드 분석 (Claude API → 실제 분석)
   │   │   ├── PlanAgent.js          # 기획 문서 자동 작성 (Claude API → 실제 기획서)
   │   │   ├── DevAgent.js           # HTML5 게임 자동 구현 (Claude API → 실제 코드 생성)
-  │   │   └── JudgeAgent.js         # Go/No-Go 판단 (Claude API → 실제 평가)
+  │   │   ├── JudgeAgent.js         # Go/No-Go 판단 (Claude API → 실제 평가)
+  │   │   └── /prompts
+  │   │       ├── trend-agent.md    # TrendAgent 지시서 (분석 기준, 출력 형식)
+  │   │       ├── plan-agent.md     # PlanAgent 지시서 (수치 필수 원칙, 기획서 스키마)
+  │   │       ├── dev-agent.md      # DevAgent 지시서 (기술 규칙, 코드 품질 기준)
+  │   │       └── judge-agent.md    # JudgeAgent 지시서 (평가 항목, 판정 기준)
   │   │
   │   └── /utils
   │       ├── analytics.js        # 리텐션, DAU, 세션 분석 유틸

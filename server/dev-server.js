@@ -10,6 +10,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '..', 'data');
 const GAMES_FILE = join(DATA_DIR, 'games.json');
 const EVENTS_FILE = join(DATA_DIR, 'events.json');
+const PROMPTS_DIR = join(__dirname, '..', 'src', 'agents', 'prompts');
+
+function loadPrompt(filename) {
+  const filepath = join(PROMPTS_DIR, filename);
+  try {
+    return readFileSync(filepath, 'utf-8');
+  } catch (e) {
+    console.warn(`[Prompt] Failed to load ${filename}:`, e.message);
+    return '';
+  }
+}
 
 const app = express();
 const PORT = 3100;
@@ -60,6 +71,14 @@ const gamesStore = new Map(Object.entries(gamesRaw));
 const playEvents = new Map(Object.entries(eventsRaw));
 const sseClients = new Set();
 
+let sanitized = 0;
+for (const [id, game] of gamesStore) {
+  if (game.code && /^```/.test(game.code.trim())) {
+    game.code = ensureValidHTML(game.code);
+    sanitized++;
+  }
+}
+if (sanitized > 0) { saveGames(); console.log(`  Sanitized ${sanitized} game(s) with markdown wrappers`); }
 console.log(`  Loaded ${gamesStore.size} games, ${playEvents.size} event groups from disk`);
 
 function broadcast(event, data) {
@@ -87,9 +106,31 @@ function extractJSON(text) {
   try { return JSON.parse(text); } catch { return null; }
 }
 
+function stripMarkdownWrapper(text) {
+  let code = text.trim();
+  code = code.replace(/^```(?:html)?\s*\n?/, '');
+  code = code.replace(/\n?```\s*$/, '');
+  return code.trim();
+}
+
 function extractHTML(text) {
-  const match = text.match(/```(?:html)?\s*([\s\S]*?)```/);
-  return match ? match[1].trim() : text;
+  const match = text.match(/```html\s*\n([\s\S]+?)\n```\s*$/);
+  if (match) return match[1].trim();
+  return stripMarkdownWrapper(text);
+}
+
+function ensureValidHTML(code) {
+  let html = stripMarkdownWrapper(code);
+  if (!html.includes('</script>')) {
+    html += '\n</script>';
+  }
+  if (!html.includes('</body>')) {
+    html += '\n</body>';
+  }
+  if (!html.includes('</html>')) {
+    html += '\n</html>';
+  }
+  return html;
 }
 
 function buildTrackingScript(gameId, serverOrigin) {
@@ -195,6 +236,7 @@ app.post('/api/games', (req, res) => {
   const id = game.id || game.gameId;
   if (!id || !game.code) return res.status(400).json({ error: 'id and code required' });
 
+  game.code = ensureValidHTML(game.code);
   gamesStore.set(id, game);
   if (!playEvents.has(id)) playEvents.set(id, []);
   saveGames();
@@ -207,9 +249,10 @@ app.get('/play/:gameId', (req, res) => {
   const game = gamesStore.get(req.params.gameId);
   if (!game || !game.code) return res.status(404).send('<h1>Game not found</h1>');
 
+  const cleanCode = ensureValidHTML(game.code);
   const origin = `${req.protocol}://${req.get('host')}`;
   const tracking = buildTrackingScript(req.params.gameId, origin);
-  const html = game.code.replace('</body>', `${tracking}</body>`);
+  const html = cleanCode.replace('</body>', `${tracking}</body>`);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
@@ -287,24 +330,10 @@ app.get('/api/play-stream', (req, res) => {
 
 app.post('/api/analyze-trends', async (req, res) => {
   try {
+    const promptMd = loadPrompt('trend-agent.md');
     const response = await ask(
-      `당신은 게임 시장 트렌드 분석 전문가입니다. 현재 게임 커뮤니티, 유튜브, OTT에서 핫한 주제를 분석하여 웹 게임 소재로 적합한 트렌드를 찾아주세요.`,
-      `현재 인기 있는 게임 트렌드 3가지를 분석해주세요. 각 트렌드는 간단한 웹 브라우저 게임(HTML5/Canvas)으로 만들 수 있어야 합니다.
-
-다음 JSON 형식으로 응답하세요:
-\`\`\`json
-{
-  "topics": [
-    {
-      "keyword": "트렌드 키워드",
-      "source": "출처 (YouTube/게임 커뮤니티/OTT 중 택1)",
-      "score": 0.0~1.0 사이 점수,
-      "description": "왜 이 트렌드가 게임 소재로 적합한지 한 줄 설명",
-      "gameIdea": "이 트렌드를 활용한 간단한 웹 게임 아이디어 한 줄"
-    }
-  ]
-}
-\`\`\``,
+      promptMd || `당신은 게임 시장 트렌드 분석 전문가입니다.`,
+      `현재 인기 있는 게임 트렌드 3가지를 분석해주세요. 위 지시서의 분석 기준과 출력 형식을 반드시 따르세요.`,
       2048,
     );
     const data = extractJSON(response.content[0].text);
@@ -319,35 +348,15 @@ app.post('/api/analyze-trends', async (req, res) => {
 app.post('/api/generate-plan', async (req, res) => {
   try {
     const { topic } = req.body;
+    const promptMd = loadPrompt('plan-agent.md');
     const response = await ask(
-      `당신은 게임 기획 전문가입니다. 주어진 트렌드 주제를 기반으로 간단한 HTML5 웹 게임의 시스템 기획서와 콘텐츠 기획서를 작성해주세요. 게임은 마우스/키보드로 조작하는 브라우저 게임이어야 합니다.`,
+      promptMd || `당신은 게임 기획 전문가입니다.`,
       `트렌드 주제: ${topic.keyword}
 설명: ${topic.description}
 게임 아이디어: ${topic.gameIdea || '자유'}
 
-다음 JSON 형식으로 시스템 기획서와 콘텐츠 기획서를 작성하세요:
-\`\`\`json
-{
-  "systemDesign": {
-    "title": "게임 제목",
-    "genre": "장르",
-    "coreLoop": "핵심 게임 루프 한 줄 설명",
-    "controls": "조작 방법 설명",
-    "mechanics": ["메카닉1", "메카닉2", "메카닉3"],
-    "winCondition": "승리/게임오버 조건",
-    "difficulty": "난이도 진행 방식"
-  },
-  "contentDesign": {
-    "title": "콘텐츠 기획서 제목",
-    "theme": "시각적 테마/분위기",
-    "stages": 3,
-    "enemies": ["적1", "적2", "적3"],
-    "items": ["아이템1", "아이템2"],
-    "colorScheme": "주요 색상 팔레트 설명"
-  }
-}
-\`\`\``,
-      2048,
+위 지시서의 핵심 원칙과 출력 형식을 반드시 따라 시스템 기획서와 콘텐츠 기획서를 작성하세요.`,
+      4096,
     );
     const data = extractJSON(response.content[0].text);
     if (!data) throw new Error('JSON 파싱 실패');
@@ -363,34 +372,29 @@ app.post('/api/generate-game', async (req, res) => {
     const { plan } = req.body;
     const sys = plan.systemDesign;
     const content = plan.contentDesign;
-    const response = await ask(
-      `당신은 HTML5 게임 개발 전문가입니다. 주어진 기획서를 기반으로 완전히 동작하는 HTML5 Canvas 게임을 단일 HTML 파일로 생성하세요.
+    const promptMd = loadPrompt('dev-agent.md');
 
-중요 규칙:
-- 단일 HTML 파일에 CSS와 JavaScript를 모두 포함
-- HTML5 Canvas 사용 (800x600 크기)
-- 외부 라이브러리 없이 순수 JavaScript만 사용
-- 게임 루프(requestAnimationFrame) 기반
-- 키보드/마우스 입력 처리
-- 점수 시스템 포함
-- 게임 오버 시 재시작 가능
-- 시각적으로 깔끔하고 플레이 가능한 게임
-- 반드시 재미있어야 함`,
-      `다음 기획서를 기반으로 완전한 HTML5 게임을 만들어주세요.
-
-제목: ${sys.title}
+    const planSummary = `제목: ${sys.title}
 장르: ${sys.genre}
 핵심 루프: ${sys.coreLoop}
 조작: ${sys.controls}
 메카닉: ${sys.mechanics.join(', ')}
 승리/게임오버 조건: ${sys.winCondition}
+난이도: ${sys.difficulty}
+밸런스: ${JSON.stringify(sys.balance || {}, null, 2)}
 테마: ${content.theme}
-적: ${content.enemies.join(', ')}
-아이템: ${content.items.join(', ')}
-색상: ${content.colorScheme}
+적: ${JSON.stringify(content.enemies, null, 2)}
+아이템: ${JSON.stringify(content.items, null, 2)}
+색상: ${content.colorScheme}`;
+
+    const response = await ask(
+      promptMd || `당신은 HTML5 게임 개발 전문가입니다.`,
+      `다음 기획서를 기반으로 완전한 HTML5 게임을 만들어주세요. 위 지시서의 기술 규칙과 수치 반영 원칙을 반드시 따르세요.
+
+${planSummary}
 
 완전한 HTML 코드를 \`\`\`html 블록으로 반환하세요.`,
-      8192,
+      16384,
     );
     const gameCode = extractHTML(response.content[0].text);
     res.json({
@@ -410,27 +414,14 @@ app.post('/api/generate-game', async (req, res) => {
 app.post('/api/evaluate-game', async (req, res) => {
   try {
     const { gameId, title, genre, plan } = req.body;
+    const promptMd = loadPrompt('judge-agent.md');
     const response = await ask(
-      `당신은 게임 QA 및 시장 분석 전문가입니다. 생성된 게임의 품질과 시장성을 평가해주세요.`,
-      `다음 게임을 평가해주세요:
+      promptMd || `당신은 게임 QA 및 시장 분석 전문가입니다.`,
+      `다음 게임을 평가해주세요. 위 지시서의 평가 항목, 판정 기준, 출력 형식을 반드시 따르세요.
+
 - 제목: ${title}
 - 장르: ${genre}
-- 기획 요약: ${JSON.stringify(plan?.systemDesign || {}, null, 2)}
-
-다음 JSON 형식으로 평가 결과를 작성하세요:
-\`\`\`json
-{
-  "decision": "go 또는 nogo",
-  "reasoning": "판정 이유 2~3줄",
-  "scores": {
-    "gameplay": 0~100,
-    "visual": 0~100,
-    "replayability": 0~100,
-    "marketFit": 0~100
-  },
-  "suggestions": ["개선 제안1", "개선 제안2"]
-}
-\`\`\``,
+- 기획 요약: ${JSON.stringify(plan?.systemDesign || {}, null, 2)}`,
       1024,
     );
     const data = extractJSON(response.content[0].text);
