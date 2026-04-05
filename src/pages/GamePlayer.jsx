@@ -16,16 +16,11 @@ export default function GamePlayer() {
     return () => { if (playSession) end('navigated_away'); };
   }, [gameId]);
 
-  const gameBlobUrl = useMemo(() => {
-    const code = game?.code || currentGame?.code;
-    if (!code) return null;
-    const blob = new Blob([code], { type: 'text/html' });
-    return URL.createObjectURL(blob);
-  }, [game?.code, currentGame?.code]);
-
-  useEffect(() => {
-    return () => { if (gameBlobUrl) URL.revokeObjectURL(gameBlobUrl); };
-  }, [gameBlobUrl]);
+  const gamePlayUrl = useMemo(() => {
+    const id = gameId || game?.id || game?.gameId || currentGame?.gameId;
+    if (!id) return null;
+    return `http://localhost:3100/play/${id}`;
+  }, [gameId, game, currentGame]);
 
   const handleEndGame = async (reason) => {
     await end(reason);
@@ -55,10 +50,10 @@ export default function GamePlayer() {
       </div>
 
       {/* Game Render Area */}
-      {gameBlobUrl ? (
+      {gamePlayUrl ? (
         <div className="rounded-2xl overflow-hidden border border-dark-700/50 bg-black">
           <iframe
-            src={gameBlobUrl}
+            src={gamePlayUrl}
             title={displayGame?.title || 'Game'}
             className="w-full"
             style={{ height: '620px' }}

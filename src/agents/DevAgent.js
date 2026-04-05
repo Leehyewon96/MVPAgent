@@ -13,10 +13,15 @@ export class DevAgent {
     useAgentStore.getState().addAgentLog('dev', message);
   }
 
-  async develop(planData) {
+  async develop(planData, resourceResult) {
     this.log('게임 개발 시작');
-    this.log(`장르: ${planData.systemDesign?.genre}`);
-    this.log(`제목: ${planData.systemDesign?.title}`);
+    this.log(`장르: ${planData.genreName || planData.systemDesign?.genre}`);
+    this.log(`제목: ${planData.gameTitle || planData.systemDesign?.title}`);
+
+    const resources = resourceResult?.resources || [];
+    if (resources.length) {
+      this.log(`리소스 ${resources.length}개 연동 중...`);
+    }
 
     try {
       this.log('Claude API를 통한 게임 코드 생성 요청 중...');
@@ -25,7 +30,11 @@ export class DevAgent {
       const res = await fetch(`${DEV_API}/generate-game`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planData }),
+        body: JSON.stringify({
+          plan: planData,
+          gameId: resourceResult?.gameId,
+          resources,
+        }),
       });
 
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
@@ -34,26 +43,29 @@ export class DevAgent {
       this.log(`게임 코드 생성 완료: ${data.title}`);
       this.log(`  코드 크기: ${(data.code.length / 1024).toFixed(1)}KB`);
       this.log(`  빌드 상태: ${data.buildStatus}`);
+      if (resources.length) this.log(`  리소스: ${resources.length}개 이미지 연동됨`);
 
       return {
         ...data,
         plan: planData,
+        resources,
       };
     } catch (error) {
       this.log(`API 연결 실패 — 기본 게임 반환 (${error.message})`);
-      return this.getFallbackGame(planData);
+      return this.getFallbackGame(planData, resources);
     }
   }
 
-  getFallbackGame(planData) {
-    const title = planData.systemDesign?.title || 'Demo Game';
+  getFallbackGame(planData, resources = []) {
+    const title = planData.gameTitle || planData.systemDesign?.title || 'Demo Game';
     return {
       gameId: `game_${Date.now()}`,
       title,
-      genre: planData.systemDesign?.genre || 'Unknown',
+      genre: planData.genreName || planData.systemDesign?.genre || 'Unknown',
       code: this.getDefaultGameCode(title),
       buildStatus: 'fallback',
       plan: planData,
+      resources,
       createdAt: Date.now(),
     };
   }

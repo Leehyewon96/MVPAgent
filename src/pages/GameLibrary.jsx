@@ -221,54 +221,59 @@ function TopicTab({ topic }) {
 
 // ─── 기획서 탭 ───
 function PlanTab({ plan, sys, con }) {
-  if (!sys?.title && !con?.title) {
+  if (!sys?.coreLoop && !con?.theme && !plan?.gameTitle) {
     return <Empty text="기획서 정보가 없습니다" />;
   }
 
+  const genre = plan?.genreName || sys?.genre;
+  const mechanics = sys?.keyMechanics || sys?.mechanics || [];
+  const enemies = con?.enemyList || con?.enemies || [];
+  const items = con?.itemList || con?.items || [];
+  const stages = con?.stageCount || con?.stages;
+  const colorInfo = con?.colorPalette ? Object.entries(con.colorPalette).map(([k, v]) => `${k}: ${v}`).join(', ') : con?.colorScheme;
+
   return (
     <div className="space-y-3">
-      {/* 시스템 기획서 */}
       <div className="bg-dark-900/60 rounded-xl p-4 border border-dark-700/30">
         <h4 className="text-sm font-semibold text-primary-300 mb-3">📐 시스템 기획서</h4>
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-          <Field label="장르" value={sys.genre} />
-          <Field label="코어 루프" value={sys.coreLoop} />
-          <Field label="조작 방법" value={sys.controls} />
-          <Field label="승리/게임오버" value={sys.winCondition} />
-          <Field label="난이도" value={sys.difficulty} />
+          <Field label="장르" value={genre} />
+          <Field label="코어 루프" value={sys?.coreLoop} />
+          <Field label="조작 방법" value={sys?.controls} />
+          <Field label="승리/게임오버" value={sys?.winCondition} />
+          <Field label="난이도" value={sys?.difficulty} />
         </div>
-        {sys.mechanics?.length > 0 && (
+        {mechanics.length > 0 && (
           <div className="mt-3">
             <span className="text-xs text-dark-500">핵심 메카닉</span>
             <div className="flex flex-wrap gap-1.5 mt-1">
-              {sys.mechanics.map((m, i) => <span key={i} className="text-xs px-2.5 py-1 bg-dark-700 rounded-lg text-dark-200">{m}</span>)}
+              {mechanics.map((m, i) => <span key={i} className="text-xs px-2.5 py-1 bg-dark-700 rounded-lg text-dark-200">{m}</span>)}
             </div>
           </div>
         )}
       </div>
 
-      {/* 콘텐츠 기획서 */}
       <div className="bg-dark-900/60 rounded-xl p-4 border border-dark-700/30">
         <h4 className="text-sm font-semibold text-amber-300 mb-3">🎨 콘텐츠 기획서</h4>
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-          <Field label="테마" value={con.theme} />
-          <Field label="스테이지 수" value={con.stages} />
-          <Field label="색상 팔레트" value={con.colorScheme} />
+          <Field label="테마" value={con?.theme} />
+          <Field label="스테이지 수" value={stages} />
+          <Field label="색상 팔레트" value={colorInfo} />
         </div>
         <div className="grid grid-cols-2 gap-4 mt-3">
-          {con.enemies?.length > 0 && (
+          {enemies.length > 0 && (
             <div>
               <span className="text-xs text-dark-500">적 목록</span>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {con.enemies.map((e, i) => <span key={i} className="text-xs px-2.5 py-1 bg-red-500/10 text-red-400 rounded-lg">{typeof e === 'object' ? e.name : e}</span>)}
+                {enemies.map((e, i) => <span key={i} className="text-xs px-2.5 py-1 bg-red-500/10 text-red-400 rounded-lg">{typeof e === 'object' ? e.name : e}</span>)}
               </div>
             </div>
           )}
-          {con.items?.length > 0 && (
+          {items.length > 0 && (
             <div>
               <span className="text-xs text-dark-500">아이템 목록</span>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {con.items.map((it, i) => <span key={i} className="text-xs px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg">{typeof it === 'object' ? it.name : it}</span>)}
+                {items.map((it, i) => <span key={i} className="text-xs px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg">{typeof it === 'object' ? it.name : it}</span>)}
               </div>
             </div>
           )}

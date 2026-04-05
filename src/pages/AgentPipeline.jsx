@@ -13,8 +13,9 @@ import {
 
 const pipelineSteps = [
   { key: 'trend', title: '시장조사 Agent', description: '트렌드 분석, 경쟁 게임 분석, 장르 결정', icon: '🔍' },
-  { key: 'plan', title: '기획 Agent', description: '콘텐츠 기획, 시스템 기획, 기술 스택 검토', icon: '📋' },
-  { key: 'dev', title: '개발 Agent', description: '클라이언트, 서버, 에셋 생성, QA/테스트', icon: '💻' },
+  { key: 'plan', title: '기획 Agent', description: '시스템 기획, 콘텐츠 기획, 리소스 요청서 작성', icon: '📋' },
+  { key: 'resource', title: '리소스 Agent', description: 'Stable Diffusion으로 게임 에셋(스프라이트, 배경) 생성', icon: '🎨' },
+  { key: 'dev', title: '개발 Agent', description: '기획서 + 리소스 기반 HTML5 Canvas 게임 코드 생성', icon: '💻' },
   { key: 'judge', title: '판단 Agent', description: '지표 수집, Go/No-Go 판단', icon: '⚖️' },
 ];
 
@@ -141,6 +142,7 @@ function ResultPanel({ agentKey, result }) {
   switch (agentKey) {
     case 'trend': return <TrendResult result={result} expanded={expanded} toggle={() => setExpanded(!expanded)} />;
     case 'plan': return <PlanResult result={result} expanded={expanded} toggle={() => setExpanded(!expanded)} />;
+    case 'resource': return <ResourceResult result={result} />;
     case 'dev': return <DevResult result={result} />;
     case 'judge': return <JudgeResult result={result} />;
     default: return null;
@@ -201,13 +203,20 @@ function TrendResult({ result, expanded, toggle }) {
 function PlanResult({ result, expanded, toggle }) {
   const sys = result.systemDesign || {};
   const con = result.contentDesign || {};
+  const title = result.gameTitle || sys.title || '게임 기획서';
+  const genre = result.genreName || sys.genre;
+  const mechanics = sys.keyMechanics || sys.mechanics || [];
+  const enemies = con.enemyList || con.enemies || [];
+  const items = con.itemList || con.items || [];
+  const stages = con.stageCount || con.stages;
+  const colorInfo = con.colorPalette ? Object.entries(con.colorPalette).map(([k, v]) => `${k}: ${v}`).join(', ') : con.colorScheme;
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <button onClick={toggle} className="text-xs font-medium text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
           <span className={`transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
-          기획서: {sys.title || '게임 기획서'}
+          기획서: {title}
         </button>
         <div className="flex gap-2">
           <DownloadButton label="MD 다운로드" onClick={() => downloadMarkdown(planResultToMarkdown(result), `plan_${Date.now()}.md`)} />
@@ -218,21 +227,20 @@ function PlanResult({ result, expanded, toggle }) {
       <AnimatePresence>
         {expanded && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-3">
-            {/* 시스템 기획서 */}
             <div className="bg-dark-900/60 rounded-xl p-4 border border-dark-700/30">
               <h4 className="text-sm font-semibold text-primary-300 mb-3">📐 시스템 기획서</h4>
               <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                <Field label="장르" value={sys.genre} />
+                <Field label="장르" value={genre} />
                 <Field label="코어 루프" value={sys.coreLoop} />
                 <Field label="조작 방법" value={sys.controls} />
                 <Field label="승리/게임오버" value={sys.winCondition} />
                 <Field label="난이도" value={sys.difficulty} />
               </div>
-              {sys.mechanics?.length > 0 && (
+              {mechanics.length > 0 && (
                 <div className="mt-3">
                   <span className="text-xs text-dark-500">핵심 메카닉</span>
                   <div className="flex flex-wrap gap-1.5 mt-1">
-                    {sys.mechanics.map((m, i) => (
+                    {mechanics.map((m, i) => (
                       <span key={i} className="text-xs px-2.5 py-1 bg-dark-700 rounded-lg text-dark-200">{m}</span>
                     ))}
                   </div>
@@ -240,28 +248,27 @@ function PlanResult({ result, expanded, toggle }) {
               )}
             </div>
 
-            {/* 콘텐츠 기획서 */}
             <div className="bg-dark-900/60 rounded-xl p-4 border border-dark-700/30">
               <h4 className="text-sm font-semibold text-amber-300 mb-3">🎨 콘텐츠 기획서</h4>
               <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                 <Field label="테마" value={con.theme} />
-                <Field label="스테이지 수" value={con.stages} />
-                <Field label="색상 팔레트" value={con.colorScheme} />
+                <Field label="스테이지 수" value={stages} />
+                <Field label="색상 팔레트" value={colorInfo} />
               </div>
               <div className="grid grid-cols-2 gap-4 mt-3">
-                {con.enemies?.length > 0 && (
+                {enemies.length > 0 && (
                   <div>
                     <span className="text-xs text-dark-500">적 목록</span>
                     <div className="flex flex-wrap gap-1.5 mt-1">
-                      {con.enemies.map((e, i) => <span key={i} className="text-xs px-2.5 py-1 bg-red-500/10 text-red-400 rounded-lg">{typeof e === 'object' ? e.name : e}</span>)}
+                      {enemies.map((e, i) => <span key={i} className="text-xs px-2.5 py-1 bg-red-500/10 text-red-400 rounded-lg">{typeof e === 'object' ? e.name : e}</span>)}
                     </div>
                   </div>
                 )}
-                {con.items?.length > 0 && (
+                {items.length > 0 && (
                   <div>
                     <span className="text-xs text-dark-500">아이템 목록</span>
                     <div className="flex flex-wrap gap-1.5 mt-1">
-                      {con.items.map((it, i) => <span key={i} className="text-xs px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg">{typeof it === 'object' ? it.name : it}</span>)}
+                      {items.map((it, i) => <span key={i} className="text-xs px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg">{typeof it === 'object' ? it.name : it}</span>)}
                     </div>
                   </div>
                 )}
@@ -270,6 +277,50 @@ function PlanResult({ result, expanded, toggle }) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── 리소스 결과 패널 ───
+function ResourceResult({ result }) {
+  const resources = result?.resources || [];
+  if (!resources.length) return <p className="text-xs text-dark-500">리소스 없음</p>;
+
+  const sdCount = resources.filter(r => r.status === 'sd-generated').length;
+  const aiCount = resources.filter(r => r.status === 'ai-generated').length;
+  const phCount = resources.filter(r => r.status === 'placeholder').length;
+
+  const parts = [];
+  if (sdCount) parts.push(`SD ${sdCount}`);
+  if (aiCount) parts.push(`AI아트 ${aiCount}`);
+  if (phCount) parts.push(`placeholder ${phCount}`);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <p className="text-xs font-medium text-emerald-400">
+          에셋 {resources.length}개 생성 ({parts.join(', ')})
+        </p>
+        <DownloadButton label="JSON 다운로드" onClick={() => downloadJSON(result, `resources_${Date.now()}.json`)} />
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+        {resources.map((r) => (
+          <div key={r.id} className="bg-dark-900/60 rounded-xl border border-dark-700/30 overflow-hidden">
+            <div className="aspect-square bg-dark-800 flex items-center justify-center p-1">
+              <img
+                src={`http://localhost:3100${r.url}`}
+                alt={r.id}
+                className="max-w-full max-h-full object-contain"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            </div>
+            <div className="p-2">
+              <p className="text-xs font-medium text-dark-200 truncate">{r.id}</p>
+              <p className="text-[10px] text-dark-500">{r.category} · {r.status === 'sd-generated' ? '🎨 SD' : r.status === 'ai-generated' ? '🖌️ AI아트' : '📦 placeholder'}</p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

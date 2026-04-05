@@ -54,9 +54,15 @@ export function trendResultToMarkdown(result) {
 export function planResultToMarkdown(result) {
   const sys = result.systemDesign || {};
   const con = result.contentDesign || {};
+  const title = result.gameTitle || sys.title || '게임 기획서';
+  const genre = result.genreName || sys.genre || '-';
+  const mechanics = sys.keyMechanics || sys.mechanics || [];
+  const enemies = con.enemyList || con.enemies || [];
+  const items = con.itemList || con.items || [];
+  const stages = con.stageCount || con.stages || '-';
 
   const lines = [
-    `# ${sys.title || '게임 기획서'}`,
+    `# ${title}`,
     '',
     `> 작성 일시: ${new Date(result.createdAt).toLocaleString('ko-KR')}`,
     '',
@@ -66,47 +72,82 @@ export function planResultToMarkdown(result) {
     '',
     `| 항목 | 내용 |`,
     `|------|------|`,
-    `| 장르 | ${sys.genre || '-'} |`,
+    `| 장르 | ${genre} |`,
     `| 코어 루프 | ${sys.coreLoop || '-'} |`,
     `| 조작 방법 | ${sys.controls || '-'} |`,
     `| 승리/게임오버 | ${sys.winCondition || '-'} |`,
     `| 난이도 | ${sys.difficulty || '-'} |`,
     '',
-    '### 핵심 메카닉',
-    '',
   ];
 
-  (sys.mechanics || []).forEach((m) => lines.push(`- ${m}`));
+  if (sys.playerStats) {
+    lines.push('### 플레이어 스탯', '');
+    Object.entries(sys.playerStats).forEach(([k, v]) => lines.push(`- **${k}**: ${v}`));
+    lines.push('');
+  }
 
-  lines.push('', '---', '', '## Part 2: 콘텐츠 기획서', '');
-  lines.push(`| 항목 | 내용 |`);
-  lines.push(`|------|------|`);
-  lines.push(`| 테마 | ${con.theme || '-'} |`);
-  lines.push(`| 스테이지 수 | ${con.stages || '-'} |`);
-  lines.push(`| 색상 팔레트 | ${con.colorScheme || '-'} |`);
-  lines.push('');
+  if (mechanics.length) {
+    lines.push('### 핵심 메카닉', '');
+    mechanics.forEach((m) => lines.push(`- ${m}`));
+    lines.push('');
+  }
 
-  if (con.enemies?.length) {
-    lines.push('### 적 목록', '');
-    con.enemies.forEach((e) => {
-      if (typeof e === 'object') {
-        lines.push(`- **${e.name}** — HP: ${e.hp}, 속도: ${e.speed}, 공격력: ${e.attackPower}, 출현 간격: ${e.spawnInterval}ms, 점수: ${e.score}`);
-      } else {
-        lines.push(`- ${e}`);
-      }
+  if (sys.enemyTypes?.length) {
+    lines.push('### 적 상세 스탯', '');
+    sys.enemyTypes.forEach((e) => {
+      lines.push(`- **${e.name}** — HP: ${e.hp}, 속도: ${e.speed}, 공격력: ${e.attackPower}, 스폰간격: ${e.spawnInterval}s, 골드: ${e.rewardGold}`);
     });
     lines.push('');
   }
 
-  if (con.items?.length) {
-    lines.push('### 아이템 목록', '');
-    con.items.forEach((it) => {
-      if (typeof it === 'object') {
-        lines.push(`- **${it.name}** — 효과: ${it.effect}, 드롭 확률: ${(it.dropChance * 100).toFixed(0)}%${it.duration ? `, 지속: ${it.duration}ms` : ''}`);
-      } else {
-        lines.push(`- ${it}`);
-      }
+  if (sys.skills?.length) {
+    lines.push('### 스킬', '');
+    sys.skills.forEach((s) => {
+      lines.push(`- **${s.name}** (${s.key}) — 쿨다운: ${s.cooldown}s, 데미지: ${s.damage}, ${s.description}`);
     });
+    lines.push('');
+  }
+
+  if (sys.waveSystem) {
+    lines.push('### 웨이브 시스템', '');
+    Object.entries(sys.waveSystem).forEach(([k, v]) => lines.push(`- **${k}**: ${v}`));
+    lines.push('');
+  }
+
+  lines.push('---', '', '## Part 2: 콘텐츠 기획서', '');
+  lines.push(`| 항목 | 내용 |`);
+  lines.push(`|------|------|`);
+  lines.push(`| 테마 | ${con.theme || '-'} |`);
+  lines.push(`| 스테이지 수 | ${stages} |`);
+  if (con.colorPalette) {
+    lines.push(`| 색상 팔레트 | ${Object.entries(con.colorPalette).map(([k, v]) => `${k}: ${v}`).join(', ')} |`);
+  }
+  lines.push('');
+
+  if (enemies.length) {
+    lines.push('### 적 목록', '');
+    enemies.forEach((e) => lines.push(`- ${typeof e === 'object' ? e.name : e}`));
+    lines.push('');
+  }
+
+  if (items.length) {
+    lines.push('### 아이템 목록', '');
+    items.forEach((it) => lines.push(`- ${typeof it === 'object' ? it.name : it}`));
+    lines.push('');
+  }
+
+  if (con.upgradeList?.length) {
+    lines.push('### 업그레이드', '');
+    con.upgradeList.forEach((u) => {
+      lines.push(`- **${u.name}** — 비용: ${u.cost}, 효과: ${u.effect}, 최대 레벨: ${u.maxLevel}`);
+    });
+    lines.push('');
+  }
+
+  if (con.bossDesign?.name) {
+    lines.push('### 보스', '');
+    lines.push(`- **${con.bossDesign.name}** — HP: ${con.bossDesign.hp}`);
+    con.bossDesign.phases?.forEach((p, i) => lines.push(`  - 페이즈 ${i + 1}: ${p}`));
     lines.push('');
   }
 

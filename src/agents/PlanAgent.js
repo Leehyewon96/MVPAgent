@@ -32,10 +32,12 @@ export class PlanAgent {
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
       const data = await res.json();
-      this.log(`기획서 생성 완료: "${data.systemDesign.title}"`);
-      this.log(`  장르: ${data.systemDesign.genre}`);
-      this.log(`  코어 루프: ${data.systemDesign.coreLoop}`);
-      this.log(`  조작: ${data.systemDesign.controls}`);
+      const title = data.gameTitle || data.systemDesign?.title || 'Untitled';
+      const genre = data.genreName || data.systemDesign?.genre || 'Unknown';
+      this.log(`기획서 생성 완료: "${title}"`);
+      this.log(`  장르: ${genre}`);
+      this.log(`  코어 루프: ${data.systemDesign?.coreLoop || ''}`);
+      this.log(`  조작: ${data.systemDesign?.controls || ''}`);
       return data;
     } catch (error) {
       this.log(`API 연결 실패 — 목업 기획서 반환 (${error.message})`);

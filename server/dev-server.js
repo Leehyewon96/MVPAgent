@@ -11,6 +11,7 @@ const DATA_DIR = join(__dirname, '..', 'data');
 const GAMES_FILE = join(DATA_DIR, 'games.json');
 const EVENTS_FILE = join(DATA_DIR, 'events.json');
 const PROMPTS_DIR = join(__dirname, '..', 'src', 'agents', 'prompts');
+const RESOURCES_DIR = join(DATA_DIR, 'resources');
 
 function loadPrompt(filename) {
   const filepath = join(PROMPTS_DIR, filename);
@@ -28,6 +29,8 @@ const PORT = 3100;
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.text({ type: 'text/plain', limit: '1mb' }));
+if (!existsSync(RESOURCES_DIR)) mkdirSync(RESOURCES_DIR, { recursive: true });
+app.use('/resources', express.static(RESOURCES_DIR));
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -131,6 +134,104 @@ function ensureValidHTML(code) {
     html += '\n</html>';
   }
   return html;
+}
+
+// ═══════════════════════════════════════════════════
+//  Stable Diffusion resource generation
+// ═══════════════════════════════════════════════════
+function aspectToSize(ar) {
+  const m = { '1:1': [256,256], '16:9': [512,288], '9:16': [288,512], '4:5': [256,320], '5:4': [320,256], '3:2': [384,256], '2:3': [256,384] };
+  return m[ar] || [256,256];
+}
+
+function buildPlaceholderSVG(id, category, w, h) {
+  const colors = { character:'#4ade80', background:'#3b82f6', item:'#f59e0b', boss:'#ef4444', effect:'#a855f7', ui:'#6b7280' };
+  const c = colors[category] || '#888';
+  const label = id.replace(/_/g, ' ');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+<rect width="${w}" height="${h}" fill="${c}" opacity="0.15" rx="8"/>
+<rect x="2" y="2" width="${w-4}" height="${h-4}" fill="none" stroke="${c}" stroke-width="2" stroke-dasharray="8 4" rx="6"/>
+<text x="${w/2}" y="${h/2-8}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="14" fill="${c}" font-weight="bold">${label}</text>
+<text x="${w/2}" y="${h/2+12}" text-anchor="middle" font-family="sans-serif" font-size="11" fill="${c}" opacity="0.7">[${category}]</text>
+</svg>`;
+}
+
+async function generateSVGWithClaude(resource, context) {
+  const [w, h] = aspectToSize(resource.aspectRatio || '1:1');
+  const { id, category, prompt } = resource;
+  const genre = context?.genre || 'action';
+  const theme = context?.theme || 'fantasy';
+  const palette = context?.colorPalette;
+
+  const categoryGuide = {
+    character: 'Create a cute, expressive game character with visible face (eyes, mouth). Use a clear silhouette. Add small details like accessories, hair, or armor pieces. Character should face the viewer.',
+    boss: 'Create a large, imposing boss monster. Make it intimidating with glowing eyes, spikes, or dark aura. Should feel powerful and dangerous. 2-3x more detailed than normal characters.',
+    background: 'Create an atmospheric game background with depth. Include 2-3 visual layers (floor/terrain, middle objects, sky/ceiling). Fill the entire canvas. Add subtle details like cracks, grass, clouds, or particles.',
+    item: 'Create a clear, iconic game item/pickup with a subtle glow effect. Make it instantly recognizable. Add a small shine or sparkle highlight. Should stand out against any background.',
+    effect: 'Create a visual effect like explosion, magic burst, or energy wave. Use radial gradients and translucent shapes. Should feel dynamic and energetic.',
+    ui: 'Create a clean UI element with sharp edges, good contrast, and readable layout. Use the game theme colors.',
+  };
+
+  try {
+    const response = await ask(
+      `You are an expert game pixel artist. Generate ONLY a valid SVG tag. No markdown fences, no explanation, no backticks. Just the raw <svg>...</svg> code.`,
+      `Create a ${w}×${h} SVG game asset.
+
+Game: "${context?.gameTitle || 'Untitled'}" (${genre})
+Theme: ${theme}
+Asset: [${category}] ${id} — "${prompt}"
+${palette ? `Color palette: background=${palette.background}, player=${palette.player}, enemy=${palette.enemy}, ui=${palette.ui}, accent=${palette.accent}` : ''}
+
+Style: ${categoryGuide[category] || 'Game-appropriate vector art with vibrant colors.'}
+
+Technical rules:
+- Start with <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+- Use <defs> for gradients/filters if needed
+- Build with basic shapes: rect, circle, ellipse, polygon, path, line
+- ${category !== 'background' ? 'Use transparent/dark background so it overlays well on game canvas' : 'Fill the entire canvas with the scene'}
+- Keep total SVG under 4000 characters
+- NO <text> elements, NO external fonts, NO <image> tags
+- Make it visually rich — use 10+ shapes minimum`,
+      3072,
+    );
+
+    let svg = response.content[0].text.trim();
+    svg = svg.replace(/^```(?:svg|xml|html)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+    const match = svg.match(/<svg[\s\S]*<\/svg>/);
+    if (match) return match[0];
+    return null;
+  } catch (e) {
+    console.warn(`[AI-SVG] Failed for ${id}: ${e.message}`);
+    return null;
+  }
+}
+
+async function generateStableImage(prompt, aspectRatio, outputPath) {
+  const apiKey = process.env.STABILITY_API_KEY;
+  if (!apiKey) return false;
+  try {
+    const formData = new FormData();
+    formData.append('prompt', prompt);
+    formData.append('output_format', 'png');
+    formData.append('model', 'sd3-medium');
+    if (aspectRatio) formData.append('aspect_ratio', aspectRatio);
+
+    const response = await fetch('https://api.stability.ai/v2beta/stable-image/generate/sd3', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: 'image/*' },
+      body: formData,
+    });
+    if (!response.ok) {
+      console.warn(`[SD] API error ${response.status}: ${(await response.text()).slice(0, 200)}`);
+      return false;
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    writeFileSync(outputPath, buffer);
+    return true;
+  } catch (e) {
+    console.warn(`[SD] Failed: ${e.message}`);
+    return false;
+  }
 }
 
 function buildTrackingScript(gameId, serverOrigin) {
@@ -252,7 +353,37 @@ app.get('/play/:gameId', (req, res) => {
   const cleanCode = ensureValidHTML(game.code);
   const origin = `${req.protocol}://${req.get('host')}`;
   const tracking = buildTrackingScript(req.params.gameId, origin);
-  const html = cleanCode.replace('</body>', `${tracking}</body>`);
+
+  const resources = game.resources || [];
+  const spriteBootstrap = `<script>
+(function(){
+var GI=window.GAME_IMAGES={};
+${resources.length ? `window.GAME_RESOURCES=${JSON.stringify(resources)};
+window.GAME_RESOURCES.forEach(function(r){var img=new Image();img.crossOrigin='anonymous';img.onload=img.onerror=function(){};img.src=r.url;GI[r.id]=img;});` : ''}
+window.drawSprite=function(id,ctx,x,y,w,h,fb){
+var img=GI[id];
+if(img&&img.complete&&img.naturalWidth>0){try{ctx.drawImage(img,x,y,w,h);return;}catch(e){}}
+if(fb){ctx.fillStyle=fb;ctx.fillRect(x,y,w,h);}
+};
+window.onerror=function(msg,src,line){console.error('[Game Error] '+msg+' at line '+line);return true;};
+})();
+</script>
+`;
+
+  let html = cleanCode;
+  if (html.includes('</head>')) {
+    html = html.replace('</head>', spriteBootstrap + '</head>');
+  } else if (html.includes('<body')) {
+    html = html.replace(/<body[^>]*>/, '$&' + spriteBootstrap);
+  } else {
+    html = spriteBootstrap + html;
+  }
+
+  if (html.includes('</body>')) {
+    html = html.replace('</body>', tracking + '</body>');
+  } else {
+    html += tracking;
+  }
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
@@ -325,7 +456,59 @@ app.get('/api/play-stream', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
-//  LLM Pipeline APIs (unchanged)
+//  Resource Generation (Stable Diffusion)
+// ═══════════════════════════════════════════════════
+app.post('/api/generate-resources', async (req, res) => {
+  try {
+    const { resources, context } = req.body;
+    if (!resources?.length) return res.json({ gameId: null, resources: [], total: 0, generated: 0 });
+
+    const gameId = `game_${Date.now()}`;
+    const gameResDir = join(RESOURCES_DIR, gameId);
+    mkdirSync(gameResDir, { recursive: true });
+
+    const results = [];
+    for (let i = 0; i < resources.length; i++) {
+      const r = resources[i];
+      let status = 'placeholder';
+      let ext = 'svg';
+
+      console.log(`[Resources] (${i + 1}/${resources.length}) Generating ${r.id}...`);
+
+      if (process.env.STABILITY_API_KEY) {
+        ext = 'png';
+        const ok = await generateStableImage(r.prompt, r.aspectRatio, join(gameResDir, `${r.id}.png`));
+        if (ok) status = 'sd-generated';
+      }
+
+      if (status === 'placeholder') {
+        const svg = await generateSVGWithClaude(r, context || {});
+        if (svg) {
+          writeFileSync(join(gameResDir, `${r.id}.svg`), svg);
+          status = 'ai-generated';
+          ext = 'svg';
+        }
+      }
+
+      if (status === 'placeholder') {
+        const [w, h] = aspectToSize(r.aspectRatio || '1:1');
+        writeFileSync(join(gameResDir, `${r.id}.svg`), buildPlaceholderSVG(r.id, r.category, w, h));
+      }
+
+      results.push({ id: r.id, category: r.category, url: `/resources/${gameId}/${r.id}.${ext}`, prompt: r.prompt, status });
+    }
+
+    const counts = { sd: results.filter(r => r.status === 'sd-generated').length, ai: results.filter(r => r.status === 'ai-generated').length, ph: results.filter(r => r.status === 'placeholder').length };
+    console.log(`[Resources] Done: ${results.length} assets for ${gameId} (SD:${counts.sd} AI:${counts.ai} placeholder:${counts.ph})`);
+    res.json({ gameId, resources: results, total: resources.length, generated: counts.sd + counts.ai });
+  } catch (error) {
+    console.error('Resource generation error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+//  LLM Pipeline APIs
 // ═══════════════════════════════════════════════════
 
 app.post('/api/analyze-trends', async (req, res) => {
@@ -355,8 +538,8 @@ app.post('/api/generate-plan', async (req, res) => {
 설명: ${topic.description}
 게임 아이디어: ${topic.gameIdea || '자유'}
 
-위 지시서의 핵심 원칙과 출력 형식을 반드시 따라 시스템 기획서와 콘텐츠 기획서를 작성하세요.`,
-      4096,
+위 지시서의 Step 1~4를 따라 장르를 선택하고, 해당 장르의 구현 가이드에 맞게 기획서와 리소스 요청서를 작성하세요. 출력 형식의 JSON 스키마를 정확히 따르세요.`,
+      8192,
     );
     const data = extractJSON(response.content[0].text);
     if (!data) throw new Error('JSON 파싱 실패');
@@ -369,38 +552,40 @@ app.post('/api/generate-plan', async (req, res) => {
 
 app.post('/api/generate-game', async (req, res) => {
   try {
-    const { plan } = req.body;
-    const sys = plan.systemDesign;
-    const content = plan.contentDesign;
+    const { plan, gameId: providedGameId, resources } = req.body;
     const promptMd = loadPrompt('dev-agent.md');
+    const gameId = providedGameId || `game_${Date.now()}`;
+    const title = plan.gameTitle || plan.systemDesign?.title || 'Untitled';
+    const genre = plan.genreName || plan.systemDesign?.genre || 'Unknown';
 
-    const planSummary = `제목: ${sys.title}
-장르: ${sys.genre}
-핵심 루프: ${sys.coreLoop}
-조작: ${sys.controls}
-메카닉: ${sys.mechanics.join(', ')}
-승리/게임오버 조건: ${sys.winCondition}
-난이도: ${sys.difficulty}
-밸런스: ${JSON.stringify(sys.balance || {}, null, 2)}
-테마: ${content.theme}
-적: ${JSON.stringify(content.enemies, null, 2)}
-아이템: ${JSON.stringify(content.items, null, 2)}
-색상: ${content.colorScheme}`;
+    let resourceSection = '';
+    if (resources?.length) {
+      resourceSection = `\n\n## 렌더링 — drawSprite 사용
+drawSprite(id, ctx, x, y, w, h, fallbackColor) 함수가 자동 제공됩니다.
+이미지 로드 실패 시 fallbackColor 사각형으로 대체됩니다.
+사용 가능한 리소스: ${resources.map(r => `${r.id}(${r.category})`).join(', ')}
+배경·플레이어·적·보스·아이템을 drawSprite()로 그리세요. HUD·총알·파티클은 fillRect/arc OK.`;
+    }
 
     const response = await ask(
       promptMd || `당신은 HTML5 게임 개발 전문가입니다.`,
-      `다음 기획서를 기반으로 완전한 HTML5 게임을 만들어주세요. 위 지시서의 기술 규칙과 수치 반영 원칙을 반드시 따르세요.
+      `기획서 JSON의 모든 항목을 빠짐없이 구현하는 완전한 HTML5 Canvas 게임을 만드세요.
 
-${planSummary}
+중요: 1) 게임이 반드시 동작해야 합니다. 2) 상태 머신(menu→playing→gameover)을 반드시 구현하세요. 3) 모든 적 종류, 스킬, 보스, 아이템을 구현하세요.
+${resourceSection}
+
+\`\`\`json
+${JSON.stringify(plan, null, 2)}
+\`\`\`
 
 완전한 HTML 코드를 \`\`\`html 블록으로 반환하세요.`,
       16384,
     );
     const gameCode = extractHTML(response.content[0].text);
     res.json({
-      gameId: `game_${Date.now()}`,
-      title: sys.title,
-      genre: sys.genre,
+      gameId,
+      title,
+      genre,
       code: gameCode,
       buildStatus: 'success',
       createdAt: Date.now(),
@@ -413,16 +598,24 @@ ${planSummary}
 
 app.post('/api/evaluate-game', async (req, res) => {
   try {
-    const { gameId, title, genre, plan } = req.body;
+    const { gameId, title, genre, plan, code } = req.body;
     const promptMd = loadPrompt('judge-agent.md');
+    const codeSnippet = code ? code.substring(0, 20000) : '(코드 없음)';
     const response = await ask(
       promptMd || `당신은 게임 QA 및 시장 분석 전문가입니다.`,
       `다음 게임을 평가해주세요. 위 지시서의 평가 항목, 판정 기준, 출력 형식을 반드시 따르세요.
 
 - 제목: ${title}
 - 장르: ${genre}
-- 기획 요약: ${JSON.stringify(plan?.systemDesign || {}, null, 2)}`,
-      1024,
+
+## 기획서
+${JSON.stringify(plan || {}, null, 2)}
+
+## 실제 구현 코드 (HTML)
+\`\`\`html
+${codeSnippet}
+\`\`\``,
+      2048,
     );
     const data = extractJSON(response.content[0].text);
     if (!data) throw new Error('JSON 파싱 실패');
@@ -436,6 +629,7 @@ app.post('/api/evaluate-game', async (req, res) => {
 const server = app.listen(PORT, () => {
   console.log(`\n  MVP Agent Dev Server running at http://localhost:${PORT}`);
   console.log(`  Anthropic API: ${process.env.ANTHROPIC_API_KEY ? '✓ Connected' : '✗ Missing key'}`);
+  console.log(`  Stability AI:  ${process.env.STABILITY_API_KEY ? '✓ Connected' : '⚠ No key (placeholder mode)'}`);
   console.log(`  Game play URL: http://localhost:${PORT}/play/:gameId\n`);
 });
 

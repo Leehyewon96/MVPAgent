@@ -362,3 +362,113 @@
   3. 기존 3000/3001/3100 포트의 모든 프로세스 종료 후 깨끗하게 재시작
 - **소요 시간**: 약 2분
 
+---
+
+## #25
+- **시간**: 2026-04-05 14:22
+- **프롬프트**:
+  > plan-agent.md 내용을 변경했는데 기획서 내용대로 dev-agent가 구현을 다 못하고 있다는 로그가 있어 해결해줘 모든 내용 다 구현할 수 있도록
+- **수행 내용**:
+  1. **근본 원인**: `plan-agent.md`의 JSON 스키마가 전면 변경됨 (`mechanics→keyMechanics`, `enemies→enemyList`, `items→itemList`, `stages→stageCount`, `colorScheme→colorPalette`, `balance→playerStats/enemyTypes/skills/waveSystem` 등) → DevAgent·서버·UI가 옛 필드를 참조하여 기획서 내용을 인식하지 못함
+  2. **dev-agent.md 전면 개편** — 새 스키마 필드명 매핑 테이블 작성 (playerStats, enemyTypes[], skills[], waveSystem, colorPalette, upgradeList[], bossDesign 등)
+  3. **dev-server.js `/api/generate-game`** — planSummary 필드별 조립 → `JSON.stringify(plan)` 전체 전달로 변경
+  4. **dev-server.js `/api/generate-plan`** — max_tokens 4096→8192
+  5. **dev-server.js `/api/evaluate-game`** — systemDesign만 전달 → plan 전체 전달 + max_tokens 1024→2048
+  6. **PlanAgent.js** — `data.systemDesign.title` → `data.gameTitle || data.systemDesign?.title` 호환
+  7. **AgentPipeline.jsx / GameLibrary.jsx** — 새 필드명 호환 레이어 추가
+  8. **download.js** — planResultToMarkdown 함수에 새 필드 전부 반영
+- **소요 시간**: 약 5분
+
+---
+
+## #26
+- **시간**: 2026-04-05 14:36
+- **프롬프트**:
+  > 파이프라인을 시작해서 게임이 생성되었는데 판단 Agent에 구현 코드가 없어서 판단할 수 없다는 로그가 있어 게임은 잘 되긴해 해결해줘
+- **수행 내용**:
+  1. **근본 원인**: JudgeAgent가 기획서(plan JSON)만 Claude에게 전달하고 실제 생성된 게임 코드(HTML)를 전달하지 않음 → Claude가 "구현 코드가 없어 평가 불가" 판정
+  2. **JudgeAgent.js** — `devResult.code`를 요청 body에 추가
+  3. **dev-server.js `/api/evaluate-game`** — `code`를 수신하여 Claude 프롬프트에 `## 실제 구현 코드 (HTML)` 섹션으로 포함 (최대 12,000자)
+  4. **judge-agent.md** — "코드 분석 필수" 원칙 추가, 기획서 대비 코드 구현 충실도·수치 반영·상태 머신·버그 리스크 등 코드 기반 평가 지시 강화
+- **소요 시간**: 약 3분
+
+---
+
+## #27
+- **시간**: 2026-04-05 15:02
+- **프롬프트**:
+  > stable diffusion으로 필요한 리소스를 제작하는 Agent 추가해줘. plan-agent가 리소스 제작 요청서도 작성하도록 만들어줘. 리소스 제작 agent가 필요한 리소스를 제작하면 dev-agent가 기획서들과 제작된 리소스를 이용해서 게임을 제작하게 수정해줘. 각 리소스는 게임별로 저장되게 해줘
+- **수행 내용**:
+  1. **ResourceAgent 신규 생성** (`src/agents/ResourceAgent.js`) — Stable Diffusion API(Stability AI SD3)를 호출하여 게임 에셋을 생성하는 Agent. API 키가 없으면 SVG placeholder 자동 생성
+  2. **resource-agent.md 신규 생성** (`src/agents/prompts/resource-agent.md`) — ResourceAgent 동작 규칙, API 설정, 저장 경로 문서
+  3. **plan-agent.md 확장** — Step 3 "리소스 제작 요청서 가이드" 섹션 추가. `resourceRequest[]` 배열을 JSON 출력 스키마에 포함 (id, category, prompt, aspectRatio). 카테고리별 가이드, SD 프롬프트 작성 예시 포함
+  4. **dev-server.js 대규모 변경**:
+     - `RESOURCES_DIR` 상수 + `/resources` 정적 서빙 추가
+     - `POST /api/generate-resources` 엔드포인트 — 각 리소스마다 Stability AI API 호출 또는 placeholder SVG 생성, `data/resources/{gameId}/` 디렉토리에 게임별 저장
+     - `generateStableImage()` — SD3 API 호출 헬퍼
+     - `buildPlaceholderSVG()` — 카테고리별 색상 SVG 생성
+     - `/api/generate-game` — `gameId`, `resources` 수신, 리소스 URL 목록을 Claude 프롬프트에 포함
+     - `/play/:gameId` — `window.GAME_RESOURCES` 매니페스트를 HTML에 자동 주입
+     - 서버 시작 시 Stability AI 연결 상태 표시
+  5. **OrchestratorAgent.js** — 5단계 파이프라인으로 확장: Trend → Plan → **Resource** → Dev → Judge
+  6. **agentStore.js** — `resource` agent 상태 추가
+  7. **DevAgent.js** — `develop(planData, resourceResult)` 시그니처 변경, gameId/resources를 서버에 전달
+  8. **dev-agent.md** — 리소스 활용 규칙 섹션 추가 (프리로드 패턴, drawImage 렌더링, 폴백 처리)
+  9. **useAgentPipeline.js** — game 저장 시 `resources` 필드 포함
+  10. **AgentPipeline.jsx** — 리소스 Agent 패널 추가 (에셋 그리드 미리보기, SD/placeholder 상태 표시)
+  11. **structure.md** — ResourceAgent.js, resource-agent.md 항목 추가
+- **소요 시간**: 약 10분
+
+---
+
+## #28
+- **시간**: 2026-04-05 15:20
+- **프롬프트**:
+  > 리소스 제작할때 그냥 색상 있는 사각형들로만 만들어진것같은데 이렇게 단순하게 말고 게임 장르에 맞게 귀엽거나 무섭거나 이런 리소스를 제작하도록 해줘
+- **수행 내용**:
+  1. **Claude AI SVG 아트 생성 추가** — Stability AI 키가 없을 때 기존 단순 placeholder 대신 Claude API로 게임 장르·테마에 맞는 실제 SVG 게임 아트를 자동 생성하도록 변경
+  2. **dev-server.js `generateSVGWithClaude()` 함수** — 카테고리별 전문 가이드 적용 (character: 표정 있는 캐릭터, boss: 위압감 있는 보스, background: 깊이감 있는 배경, item: 빛나는 아이콘 등). 게임 제목·장르·테마·색상 팔레트를 컨텍스트로 전달
+  3. **리소스 생성 우선순위**: Stability AI SD3 → Claude AI SVG 아트 → 단순 placeholder (3단계 폴백)
+  4. **ResourceAgent.js** — plan의 컨텍스트(genre, theme, colorPalette, gameTitle)를 서버에 함께 전달
+  5. **AgentPipeline.jsx** — 상태 표시 개선 (SD/AI아트/placeholder 3종류 구분)
+- **소요 시간**: 약 5분
+
+---
+
+## #29
+- **시간**: 2026-04-05 15:35
+- **프롬프트**:
+  > 완성된 게임에 제작된 리소스가 하나도 표시가 안되는데? 제작된 리소스 사용하도록 해줘
+- **수행 내용**:
+  1. **근본 원인**: DevAgent가 생성한 게임 코드가 리소스 이미지를 실제로 사용하지 않고, 단순 fillRect/arc로 도형만 그림
+  2. **서버 사이드 자동 주입** (`/play/:gameId`) — `drawSprite(id, ctx, x, y, w, h, fallbackColor)` 헬퍼 함수 + `window.GAME_IMAGES` 이미지 프리로더를 게임 HTML에 자동 주입. LLM이 코드를 잘못 생성해도 함수 자체는 항상 존재
+  3. **DevAgent 프롬프트 강화** (`/api/generate-game`) — 리소스 목록을 프롬프트 상단에 ★★★ 필수로 배치. 각 리소스 ID별 `drawSprite()` 호출 예시를 구체적으로 제공. `ctx.fillRect()`/`ctx.arc()`로 캐릭터/적/배경을 그리는 것을 명시적으로 금지
+  4. **dev-agent.md 간소화** — 불필요한 프리로드 코드 제거 (서버가 자동 주입하므로). `drawSprite()` 사용법만 명확하게 정리. 적용 대상별 예시 코드 + 엄격한 금지 규칙 추가
+- **소요 시간**: 약 5분
+
+---
+
+## #17
+- **시간**: 2026-04-05 15:38
+- **프롬프트**:
+  > 리소스 제작이 된건 확인했는데 실제 게임에 저렇게 하늘색 화면만 나오고 아무것도 렌더링이 안되고 있어. 그리고 판단 Agent 내용에 구현이 안된 코드가 있다는 로그도 있어 개발 Agent에서 기획서의 내용을 반드시 모두 구현 완료되게 수정해줘
+- **수행 내용**:
+  1. **근본 원인 3가지 파악**: (1) drawSprite가 리소스 있을 때만 주입되어 리소스 누락 시 게임 크래시, (2) 리소스 지시가 너무 과도하여 Claude가 게임 로직보다 이미지 사용에 집중 → 미완성 게임, (3) JudgeAgent가 drawSprite를 undefined로 오판
+  2. **dev-server.js** — drawSprite를 리소스 유무와 관계없이 항상 주입. 주입 위치도 `</head>`/`<body>` 등 폴백 포인트 추가. `window.onerror` 핸들러 추가. 게임 생성 프롬프트 구조 개선: 기획서 JSON 먼저 배치, 리소스 정보 간소화
+  3. **dev-agent.md 전면 개선** — "외부 리소스 금지" 모순 삭제. drawSprite 안전 스텁(`typeof drawSprite === 'undefined'` 체크) 추가. 게임 상태 머신(menu→playing→gameover) 구체적 코드 예시 추가. 게임 동작 최우선 원칙 강조
+  4. **judge-agent.md** — "drawSprite는 런타임 자동 주입" 안내 추가, drawSprite 미정의를 감점 대상에서 제외
+  5. JudgeAgent 코드 스니펫 길이 12000→20000자로 확대
+- **소요 시간**: 2026-04-05 15:38 ~ 15:44 (약 6분)
+
+---
+
+## #18
+- **시간**: 2026-04-05 15:50
+- **프롬프트**:
+  > 방금 파이프라인 실행해서 게임 완성되었는데 제작된 리소스가 게임 화면에 하나도 없어 제작된 리소스를 사용해서 게임화면에 렌더링하도록 해줘
+- **수행 내용**:
+  1. **근본 원인 발견**: `GamePlayer.jsx`가 게임 코드를 Blob URL로 렌더링하고 있어, 서버의 drawSprite 주입(`/play/:gameId`)이 전혀 적용되지 않았음. Blob 컨텍스트에서 `/resources/...` 경로도 해석 불가
+  2. **확인한 사실**: 게임 코드에는 drawSprite 호출이 7회 있고, SVG 리소스 파일 8개가 서버에 정상 존재하며 서빙도 가능. 문제는 순전히 Blob URL 렌더링 방식
+  3. **GamePlayer.jsx 수정** — Blob URL 대신 서버의 `/play/:gameId` URL을 iframe src로 직접 사용하도록 변경. 서버가 drawSprite 부트스트랩 + 이미지 프리로더 + 트래킹 스크립트를 자동 주입
+- **소요 시간**: 2026-04-05 15:50 ~ 15:57 (약 7분)
+

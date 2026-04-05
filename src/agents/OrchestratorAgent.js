@@ -7,6 +7,7 @@
 import { useAgentStore } from '../store/agentStore';
 import { TrendAgent } from './TrendAgent';
 import { PlanAgent } from './PlanAgent';
+import { ResourceAgent } from './ResourceAgent';
 import { DevAgent } from './DevAgent';
 import { JudgeAgent } from './JudgeAgent';
 
@@ -19,6 +20,7 @@ export class OrchestratorAgent {
     this.agents = {
       trend: new TrendAgent(),
       plan: new PlanAgent(),
+      resource: new ResourceAgent(),
       dev: new DevAgent(),
       judge: new JudgeAgent(),
     };
@@ -53,18 +55,27 @@ export class OrchestratorAgent {
       store.setAgentResult('plan', planResult);
       this.log('기획 문서 생성 완료');
 
-      // Phase 3: 개발
+      // Phase 3: 리소스 생성
       await delay(600);
-      this.log('Phase 3: 개발 Agent 실행');
+      this.log('Phase 3: 리소스 Agent 실행 (Stable Diffusion)');
+      store.setAgentStatus('resource', 'running');
+      await delay(800);
+      const resourceResult = await this.agents.resource.generateResources(planResult);
+      store.setAgentResult('resource', resourceResult);
+      this.log(`리소스 생성 완료: ${resourceResult.resources?.length || 0}개 에셋`);
+
+      // Phase 4: 개발
+      await delay(600);
+      this.log('Phase 4: 개발 Agent 실행');
       store.setAgentStatus('dev', 'running');
       await delay(1200);
-      const devResult = await this.agents.dev.develop(planResult);
+      const devResult = await this.agents.dev.develop(planResult, resourceResult);
       store.setAgentResult('dev', devResult);
       this.log('게임 개발 완료');
 
-      // Phase 4: 판단
+      // Phase 5: 판단
       await delay(600);
-      this.log('Phase 4: 판단 Agent 실행');
+      this.log('Phase 5: 판단 Agent 실행');
       store.setAgentStatus('judge', 'running');
       await delay(800);
       const judgeResult = await this.agents.judge.evaluate(devResult);
@@ -79,6 +90,7 @@ export class OrchestratorAgent {
       return {
         trend: trendResult,
         plan: planResult,
+        resource: resourceResult,
         dev: devResult,
         judge: judgeResult,
       };

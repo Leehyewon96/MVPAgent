@@ -32,6 +32,7 @@ export function useAgentPipeline() {
           decision: result.judge?.decision,
           scores: result.judge?.scores,
           plan: result.dev.plan,
+          resources: result.dev.resources || [],
         });
       }
 

@@ -75,12 +75,14 @@
   │   │   ├── OrchestratorAgent.js  # 전체 파이프라인 흐름 제어
   │   │   ├── TrendAgent.js         # 트렌드 분석 (Claude API → 실제 분석)
   │   │   ├── PlanAgent.js          # 기획 문서 자동 작성 (Claude API → 실제 기획서)
+  │   │   ├── ResourceAgent.js      # 리소스 제작 (Stable Diffusion API → 게임 에셋 생성)
   │   │   ├── DevAgent.js           # HTML5 게임 자동 구현 (Claude API → 실제 코드 생성)
   │   │   ├── JudgeAgent.js         # Go/No-Go 판단 (Claude API → 실제 평가)
   │   │   └── /prompts
   │   │       ├── trend-agent.md    # TrendAgent 지시서 (분석 기준, 출력 형식)
-  │   │       ├── plan-agent.md     # PlanAgent 지시서 (수치 필수 원칙, 기획서 스키마)
-  │   │       ├── dev-agent.md      # DevAgent 지시서 (기술 규칙, 코드 품질 기준)
+  │   │       ├── plan-agent.md     # PlanAgent 지시서 (장르별 가이드, 기획서+리소스 요청서 스키마)
+  │   │       ├── resource-agent.md # ResourceAgent 지시서 (SD API 설정, 리소스 저장 규칙)
+  │   │       ├── dev-agent.md      # DevAgent 지시서 (기술 규칙, 리소스 활용, 코드 품질 기준)
   │   │       └── judge-agent.md    # JudgeAgent 지시서 (평가 항목, 판정 기준)
   │   │
   │   └── /utils

@@ -26,6 +26,7 @@ export class JudgeAgent {
           title: devResult.title,
           genre: devResult.genre,
           plan: devResult.plan,
+          code: devResult.code,
         }),
       });
 
