@@ -2,7 +2,7 @@
 
 ## 역할
 
-주어진 기획서(JSON)를 기반으로 **완전히 동작하는 HTML5 Canvas 게임**을 **단일 HTML 파일**로 생성하세요.
+주어진 기획서(JSON)를 기반으로 **2.5D 아이소메트릭 스타일의 HTML5 Canvas 게임**을 **단일 HTML 파일**로 생성하세요.
 
 ---
 
@@ -15,13 +15,60 @@
 
 ---
 
+## ★ 2.5D 렌더링 (필수)
+
+### 시점
+- **쿼터뷰 (3/4 뷰)**: 위에서 약 30~45도 각도로 내려다보는 시점
+- 모든 스프라이트는 이 시점에 맞는 이미지로 제공됨 (drawSprite 사용)
+
+### 깊이 정렬 (Y-Sort)
+모든 게임 오브젝트를 **y좌표 순서로 정렬**하여 뒤(위쪽)부터 앞(아래쪽)으로 그립니다:
+```javascript
+function render() {
+  drawSprite('bg_id', ctx, 0, 0, canvas.width, canvas.height, '#2d5a27');
+
+  // 모든 오브젝트를 하나의 배열에 모아 y정렬
+  var allObjects = [];
+  enemies.forEach(function(e) { allObjects.push({type:'enemy', obj:e}); });
+  items.forEach(function(it) { allObjects.push({type:'item', obj:it}); });
+  allObjects.push({type:'player', obj:player});
+  if (boss) allObjects.push({type:'boss', obj:boss});
+  allObjects.sort(function(a,b) { return a.obj.y - b.obj.y; });
+
+  allObjects.forEach(function(entry) {
+    var o = entry.obj;
+    switch(entry.type) {
+      case 'enemy': drawSprite(o.spriteId, ctx, o.x, o.y, 48, 48, '#ef4444'); break;
+      case 'item': drawSprite(o.spriteId, ctx, o.x, o.y, 32, 32, '#f59e0b'); break;
+      case 'player': drawSprite('player_id', ctx, o.x, o.y, 56, 56, '#4ade80'); break;
+      case 'boss': drawSprite('boss_id', ctx, o.x, o.y, 80, 80, '#dc2626'); break;
+    }
+  });
+
+  drawHUD();
+}
+```
+
+### 그림자 효과 (선택)
+오브젝트 아래에 반투명 타원으로 그림자를 추가하면 입체감 증가:
+```javascript
+function drawShadow(ctx, x, y, w) {
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x + w/2, y + w*0.85, w*0.4, w*0.15, 0, 0, Math.PI*2);
+  ctx.fill();
+}
+```
+
+---
+
 ## 기술 규칙
 
 - 단일 HTML 파일, `<script>` 하나에 JS 전부
-- CSS는 body/canvas 기본 스타일만 (`body{margin:0;background:#111;display:flex;justify-content:center;align-items:center;height:100vh}`)
+- CSS: `body{margin:0;background:#111;display:flex;justify-content:center;align-items:center;height:100vh}`
 - 순수 JavaScript, requestAnimationFrame 기반 루프
 - keydown/keyup + canvas click 입력
-- 폰트: `window.GAME_FONT` 가 자동 주입됨. `ctx.font = 'bold 20px ' + (window.GAME_FONT || 'sans-serif');` 형태로 사용
+- 폰트: `var GF = window.GAME_FONT || 'sans-serif';` — 모든 `ctx.font`에 사용
 
 ---
 
@@ -38,27 +85,15 @@ function gameLoop() {
 }
 
 function drawMenu() {
-  ctx.fillStyle = '#111';
+  drawSprite('bg_id', ctx, 0, 0, canvas.width, canvas.height, '#1a1a2e');
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 36px sans-serif';
+  ctx.font = 'bold 36px ' + GF;
   ctx.textAlign = 'center';
   ctx.fillText('게임 제목', canvas.width/2, canvas.height/2 - 40);
-  ctx.font = '18px sans-serif';
+  ctx.font = '18px ' + GF;
   ctx.fillText('SPACE 또는 클릭으로 시작', canvas.width/2, canvas.height/2 + 20);
-}
-
-function drawGameOver() {
-  ctx.fillStyle = 'rgba(0,0,0,0.7)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#f44';
-  ctx.font = 'bold 40px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 30);
-  ctx.fillStyle = '#fff';
-  ctx.font = '20px sans-serif';
-  ctx.fillText('Score: ' + score, canvas.width/2, canvas.height/2 + 10);
-  ctx.fillText('SPACE/클릭으로 재시작', canvas.width/2, canvas.height/2 + 50);
 }
 
 document.addEventListener('keydown', e => {
@@ -73,7 +108,6 @@ canvas.addEventListener('click', () => {
   if (state === 'menu') { state = 'playing'; initGame(); }
   else if (state === 'gameover') { state = 'menu'; }
 });
-
 gameLoop();
 ```
 
@@ -101,7 +135,6 @@ gameLoop();
 ## 렌더링: drawSprite 사용
 
 `drawSprite(id, ctx, x, y, w, h, fallbackColor)` 함수가 **런타임에 자동 주입**됩니다.
-이미지가 있으면 이미지를 그리고, 없으면 fallbackColor로 사각형을 그립니다.
 
 **스크립트 맨 앞에 안전 장치를 넣으세요:**
 ```javascript
@@ -110,32 +143,12 @@ if (typeof drawSprite === 'undefined') {
     if (fb) { ctx.fillStyle = fb; ctx.fillRect(x, y, w, h); }
   };
 }
-```
-
-**render() 함수에서 사용:**
-```javascript
 var GF = window.GAME_FONT || 'sans-serif';
-
-function render() {
-  // 배경은 반드시 drawSprite로 (단색 배경 금지)
-  drawSprite('bg_id', ctx, 0, 0, canvas.width, canvas.height, '#1a1a2e');
-  // 모든 게임 오브젝트를 drawSprite로
-  items.forEach(it => drawSprite(it.spriteId || 'item', ctx, it.x, it.y, 28, 28, '#f59e0b'));
-  enemies.forEach(e => drawSprite(e.spriteId || 'enemy', ctx, e.x, e.y, 40, 40, '#ef4444'));
-  drawSprite('player_id', ctx, player.x, player.y, 48, 48, '#4ade80');
-  if (boss) drawSprite('boss_id', ctx, boss.x, boss.y, 80, 80, '#dc2626');
-  // HUD — fillText/fillRect OK, 폰트는 GAME_FONT 사용
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 16px ' + GF;
-  ctx.textAlign = 'left';
-  ctx.fillText('HP: '+player.hp+'  Score: '+score+'  Wave: '+wave, 10, 24);
-}
 ```
 
 **규칙:**
 - 배경·플레이어·적·보스·아이템은 **반드시 drawSprite()** 사용
-- `ctx.fillRect()/arc()`로 이들을 그리는 것은 **금지** (HUD 바, 총알, 파티클만 허용)
-- 폰트: `var GF = window.GAME_FONT || 'sans-serif';` 선언 후 모든 `ctx.font`에 사용
+- `ctx.fillRect()/arc()`로 이들을 그리는 것은 **금지** (HUD 바, 총알, 파티클, 그림자만 허용)
 - 리소스 ID는 프롬프트에서 제공되는 목록을 정확히 사용
 
 ---

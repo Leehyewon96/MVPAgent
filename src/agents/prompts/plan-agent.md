@@ -5,6 +5,15 @@
 TrendAgent가 선정한 트렌드를 바탕으로 **시스템 기획서**와 **콘텐츠 기획서**를 작성합니다.  
 기획서는 DevAgent가 HTML5 Canvas + 순수 JS 단일 파일로 바로 구현할 수 있을 만큼 구체적이어야 합니다.
 
+## ★ 비주얼 스타일: 2.5D (아이소메트릭)
+
+모든 게임은 **2.5D 아이소메트릭 뷰**로 제작합니다.
+- 카메라: 위에서 약 30~45도 각도로 내려다보는 쿼터뷰
+- 오브젝트: 3/4 뷰 (앞면 + 윗면이 보이는 입체 느낌)
+- 깊이 정렬: y좌표가 큰(화면 아래쪽) 오브젝트가 위에 그려짐
+- 바닥: 아이소메트릭 그리드 또는 원근감 있는 타일 패턴
+- 이 스타일을 기획서의 `contentDesign.visualStyle`에 명시하세요
+
 ---
 
 ## Step 1. 장르 선택
@@ -182,24 +191,27 @@ PlanAgent는 ResourceAgent가 **Stable Diffusion**으로 제작할 게임 에셋
 ### 리소스 요청 규칙
 - **총 5~8개** 리소스를 요청 (너무 많으면 생성 시간 증가)
 - **프롬프트는 영문으로** 작성 (Stable Diffusion 최적화)
+- **모든 리소스에 2.5D 아이소메트릭 스타일** 통일: `"isometric 2.5D, three-quarter view"` 포함
+- 캐릭터/아이템: `"isometric 2.5D, three-quarter view, transparent background, game sprite"` 포함
+- 배경: `"isometric 2.5D environment, game background"` 포함
 - **일관된 아트 스타일** 유지 (모든 리소스에 동일 스타일 키워드 사용)
-- 캐릭터/아이템은 반드시 **"transparent background, PNG, game sprite"** 포함
-- 배경은 **캔버스 크기에 맞는 비율**로 요청
 
 ### 카테고리별 가이드
 | 카테고리 | 필수 | 설명 | aspectRatio |
 |----------|------|------|-------------|
 | `character` | ✅ | 플레이어 1 + 적 종류별 각 1 | `1:1` |
-| `background` | ✅ | 메인 게임 배경 1 | `16:9` 또는 `9:16` |
+| `background` | ✅ | 메인 게임 배경 1 | `16:9` |
 | `item` | 선택 | 주요 아이템/파워업 1~2 | `1:1` |
 | `boss` | 선택 | 보스가 있다면 1 | `1:1` |
 | `effect` | 선택 | 이펙트 (폭발 등) | `1:1` |
 | `ui` | 선택 | 특별한 UI 요소 | `16:9` |
 
 ### 프롬프트 작성 예시
-- ✅ `"pixel art knight character, top-down view, blue steel armor, golden sword, 64x64 sprite, transparent background, clean edges, game asset"`
-- ✅ `"dark fantasy dungeon floor tileable background, top-down perspective, stone tiles, torchlight, pixel art style, 16:9, game background"`
-- ❌ `"a knight"` (너무 짧고 스타일 미지정)
+- ✅ `"isometric 2.5D knight character, three-quarter view, blue steel armor, golden sword, detailed shading, transparent background, clean edges, game sprite"`
+- ✅ `"isometric 2.5D fantasy forest environment, three-quarter view, lush trees, stone path, warm lighting, atmospheric depth, game background"`
+- ✅ `"isometric 2.5D treasure chest, three-quarter view, golden glow effect, detailed wood texture, transparent background, game item"`
+- ❌ `"a knight"` (너무 짧고 스타일/뷰 미지정)
+- ❌ `"top-down view knight"` (2.5D가 아닌 탑다운)
 
 ---
 
@@ -262,6 +274,7 @@ PlanAgent는 ResourceAgent가 **Stable Diffusion**으로 제작할 게임 에셋
 
   "contentDesign": {
     "theme": "테마 및 분위기",
+    "visualStyle": "2.5D isometric, three-quarter view",
     "stageCount": 0,
     "colorPalette": {
       "background": "#000000",

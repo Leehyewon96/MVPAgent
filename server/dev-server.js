@@ -167,12 +167,12 @@ async function generateSVGWithClaude(resource, context) {
   const palette = context?.colorPalette;
 
   const categoryGuide = {
-    character: 'Create a cute, expressive game character with visible face (eyes, mouth). Use a clear silhouette. Add small details like accessories, hair, or armor pieces. Character should face the viewer.',
-    boss: 'Create a large, imposing boss monster. Make it intimidating with glowing eyes, spikes, or dark aura. Should feel powerful and dangerous. 2-3x more detailed than normal characters.',
-    background: 'Create an atmospheric game background with depth. Include 2-3 visual layers (floor/terrain, middle objects, sky/ceiling). Fill the entire canvas. Add subtle details like cracks, grass, clouds, or particles.',
-    item: 'Create a clear, iconic game item/pickup with a subtle glow effect. Make it instantly recognizable. Add a small shine or sparkle highlight. Should stand out against any background.',
-    effect: 'Create a visual effect like explosion, magic burst, or energy wave. Use radial gradients and translucent shapes. Should feel dynamic and energetic.',
-    ui: 'Create a clean UI element with sharp edges, good contrast, and readable layout. Use the game theme colors.',
+    character: 'Create an isometric 2.5D game character seen from a three-quarter view (slightly above). Give it a cute, expressive face, clear silhouette, and detailed shading to suggest depth. Add accessories or armor details. Character should face slightly toward the viewer.',
+    boss: 'Create a large, imposing isometric 2.5D boss monster seen from three-quarter view. Make it intimidating with glowing elements, spikes, or dark aura. Should feel powerful with dramatic perspective. 2-3x more detailed than normal characters.',
+    background: 'Create an isometric 2.5D game environment background with atmospheric depth. Show terrain from a three-quarter overhead view. Include 2-3 visual layers (ground/floor, mid-ground objects, sky/atmosphere). Fill the entire canvas with the scene.',
+    item: 'Create an isometric 2.5D game item/pickup with a slight 3D perspective. Add a subtle glow effect and shine highlight. Make it instantly recognizable from the three-quarter view angle.',
+    effect: 'Create a visual effect like explosion, magic burst, or energy wave with slight isometric perspective. Use radial gradients and translucent shapes. Should feel dynamic and energetic.',
+    ui: 'Create a clean UI element with modern design, slight 3D beveled look, good contrast, and readable layout.',
   };
 
   try {
@@ -210,15 +210,16 @@ Technical rules:
 }
 
 function enhancePrompt(prompt, category) {
+  const base = ', isometric 2.5D, three-quarter view, high quality digital art';
   const styleMap = {
-    character: ', game sprite, clean outline, vibrant colors, transparent background, centered character, high quality digital art, game asset',
-    boss: ', epic boss monster, game sprite, detailed, menacing, vibrant colors, transparent background, high quality digital art, game asset',
-    background: ', game background, seamless, detailed environment, atmospheric, vibrant colors, high quality digital painting',
-    item: ', game item icon, clean outline, glowing effect, transparent background, high quality digital art, game asset',
-    effect: ', visual effect, game VFX, transparent background, vibrant glow, high quality digital art',
-    ui: ', game UI element, clean design, high contrast, modern flat style',
+    character: base + ', game character sprite, clean outline, vibrant colors, transparent background, centered, detailed shading, slight perspective from above',
+    boss: base + ', epic boss monster sprite, detailed, menacing, vibrant colors, transparent background, imposing scale, dramatic lighting',
+    background: base + ', game environment background, atmospheric depth, detailed terrain, warm lighting, seamless isometric landscape',
+    item: base + ', game item icon, clean outline, glowing effect, transparent background, detailed texture, slight 3D look',
+    effect: base + ', visual effect, game VFX, transparent background, vibrant glow, dynamic energy',
+    ui: ', game UI element, clean modern design, high contrast, slight 3D beveled style',
   };
-  return prompt + (styleMap[category] || ', high quality game art, digital illustration');
+  return prompt + (styleMap[category] || base + ', game asset');
 }
 
 async function generateStableImage(prompt, aspectRatio, outputPath) {
@@ -601,9 +602,14 @@ drawSprite(id, ctx, x, y, w, h, fallbackColor) 함수가 자동 제공됩니다.
 
     const response = await ask(
       promptMd || `당신은 HTML5 게임 개발 전문가입니다.`,
-      `기획서 JSON의 모든 항목을 빠짐없이 구현하는 완전한 HTML5 Canvas 게임을 만드세요.
+      `기획서 JSON의 모든 항목을 빠짐없이 구현하는 완전한 2.5D 아이소메트릭 HTML5 Canvas 게임을 만드세요.
 
-중요: 1) 게임이 반드시 동작해야 합니다. 2) 상태 머신(menu→playing→gameover)을 반드시 구현하세요. 3) 모든 적 종류, 스킬, 보스, 아이템을 구현하세요.
+중요:
+1) 게임이 반드시 동작해야 합니다.
+2) 2.5D 쿼터뷰 — 모든 오브젝트를 y좌표로 깊이 정렬(Y-Sort)하여 렌더링하세요.
+3) 상태 머신(menu→playing→gameover)을 반드시 구현하세요.
+4) 모든 적 종류, 스킬, 보스, 아이템을 구현하세요.
+5) drawSprite()로 모든 게임 오브젝트를 렌더링하세요 (fillRect/arc로 캐릭터/적/배경 그리기 금지).
 ${resourceSection}
 
 \`\`\`json
