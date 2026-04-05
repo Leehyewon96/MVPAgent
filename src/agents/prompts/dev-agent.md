@@ -21,6 +21,7 @@
 - CSS는 body/canvas 기본 스타일만 (`body{margin:0;background:#111;display:flex;justify-content:center;align-items:center;height:100vh}`)
 - 순수 JavaScript, requestAnimationFrame 기반 루프
 - keydown/keyup + canvas click 입력
+- 폰트: `window.GAME_FONT` 가 자동 주입됨. `ctx.font = 'bold 20px ' + (window.GAME_FONT || 'sans-serif');` 형태로 사용
 
 ---
 
@@ -113,19 +114,29 @@ if (typeof drawSprite === 'undefined') {
 
 **render() 함수에서 사용:**
 ```javascript
+var GF = window.GAME_FONT || 'sans-serif';
+
 function render() {
+  // 배경은 반드시 drawSprite로 (단색 배경 금지)
   drawSprite('bg_id', ctx, 0, 0, canvas.width, canvas.height, '#1a1a2e');
+  // 모든 게임 오브젝트를 drawSprite로
   items.forEach(it => drawSprite(it.spriteId || 'item', ctx, it.x, it.y, 28, 28, '#f59e0b'));
   enemies.forEach(e => drawSprite(e.spriteId || 'enemy', ctx, e.x, e.y, 40, 40, '#ef4444'));
   drawSprite('player_id', ctx, player.x, player.y, 48, 48, '#4ade80');
   if (boss) drawSprite('boss_id', ctx, boss.x, boss.y, 80, 80, '#dc2626');
-  // HUD는 fillText/fillRect OK
+  // HUD — fillText/fillRect OK, 폰트는 GAME_FONT 사용
   ctx.fillStyle = '#fff';
-  ctx.font = '16px sans-serif';
+  ctx.font = 'bold 16px ' + GF;
   ctx.textAlign = 'left';
   ctx.fillText('HP: '+player.hp+'  Score: '+score+'  Wave: '+wave, 10, 24);
 }
 ```
+
+**규칙:**
+- 배경·플레이어·적·보스·아이템은 **반드시 drawSprite()** 사용
+- `ctx.fillRect()/arc()`로 이들을 그리는 것은 **금지** (HUD 바, 총알, 파티클만 허용)
+- 폰트: `var GF = window.GAME_FONT || 'sans-serif';` 선언 후 모든 `ctx.font`에 사용
+- 리소스 ID는 프롬프트에서 제공되는 목록을 정확히 사용
 
 ---
 

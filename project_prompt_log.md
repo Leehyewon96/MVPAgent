@@ -484,3 +484,18 @@
   3. **AgentPipeline.jsx** — 각 Agent 카드에 `▶ 실행` / `재실행` 버튼 + `⏩ 이후 전체` 버튼 추가. 선행 단계 미완료 시 의존성 안내 텍스트 표시. 기존 `전체 파이프라인 시작` 버튼도 유지
 - **소요 시간**: 2026-04-05 16:00 ~ 16:12 (약 12분)
 
+---
+
+## #20
+- **시간**: 2026-04-05 16:18
+- **프롬프트**:
+  > stable diffusion api 요금이 전혀 소모되지 않고 있는데 리소스 제작하는거 무조건 stable diffusion 으로 제작하게 해줘. SD 스프라이트 연결, 도형 기반 그래픽 문제, 배경 단색 문제, 캐릭터 원시적 도형 문제, UI 폰트 기본 시스템 폰트 문제 해결
+- **수행 내용**:
+  1. **근본 원인**: `dotenv/config`가 `.env` 파일만 로드하고 `.env.local`을 무시 → `STABILITY_API_KEY`가 서버에 전달되지 않아 SD API가 호출되지 않음. 서버 로그에도 `Stability AI: ⚠ No key` 표시
+  2. **`.env.local` 로딩 수정** — `import 'dotenv/config'`를 `dotenv.config({ path: '.env' }) + dotenv.config({ path: '.env.local', override: true })`로 변경. 이제 서버 로그에 `Stability AI: ✓ Connected` 표시
+  3. **SD 프롬프트 품질 강화** — `enhancePrompt()` 함수 추가: 카테고리별(character, boss, background, item, effect) 스타일 수식어를 프롬프트 뒤에 자동 추가. negative_prompt도 추가
+  4. **게임 HTML 웹폰트 주입** — 게임 서빙 시 Google Fonts의 `Noto Sans KR` 자동 주입. `window.GAME_FONT` 전역 변수로 접근 가능
+  5. **drawSprite 개선** — PNG 이미지 로딩 안정성 향상 (crossOrigin 속성 제거로 same-origin 충돌 방지). 로드 진행률 추적(`window.spritesReady()`)
+  6. **dev-agent.md** — `window.GAME_FONT` 사용 지시 추가, 모든 `ctx.font`에 웹폰트 적용 안내
+- **소요 시간**: 2026-04-05 16:18 ~ 16:31 (약 13분)
+

@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
@@ -7,6 +7,9 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT_DIR = join(__dirname, '..');
+dotenv.config({ path: join(ROOT_DIR, '.env') });
+dotenv.config({ path: join(ROOT_DIR, '.env.local'), override: true });
 const DATA_DIR = join(__dirname, '..', 'data');
 const GAMES_FILE = join(DATA_DIR, 'games.json');
 const EVENTS_FILE = join(DATA_DIR, 'events.json');
@@ -206,6 +209,18 @@ Technical rules:
   }
 }
 
+function enhancePrompt(prompt, category) {
+  const styleMap = {
+    character: ', game sprite, clean outline, vibrant colors, transparent background, centered character, high quality digital art, game asset',
+    boss: ', epic boss monster, game sprite, detailed, menacing, vibrant colors, transparent background, high quality digital art, game asset',
+    background: ', game background, seamless, detailed environment, atmospheric, vibrant colors, high quality digital painting',
+    item: ', game item icon, clean outline, glowing effect, transparent background, high quality digital art, game asset',
+    effect: ', visual effect, game VFX, transparent background, vibrant glow, high quality digital art',
+    ui: ', game UI element, clean design, high contrast, modern flat style',
+  };
+  return prompt + (styleMap[category] || ', high quality game art, digital illustration');
+}
+
 async function generateStableImage(prompt, aspectRatio, outputPath) {
   const apiKey = process.env.STABILITY_API_KEY;
   if (!apiKey) return false;
@@ -213,7 +228,7 @@ async function generateStableImage(prompt, aspectRatio, outputPath) {
     const formData = new FormData();
     formData.append('prompt', prompt);
     formData.append('output_format', 'png');
-    formData.append('model', 'sd3-medium');
+    formData.append('negative_prompt', 'blurry, low quality, text, watermark, signature, deformed, ugly, bad anatomy');
     if (aspectRatio) formData.append('aspect_ratio', aspectRatio);
 
     const response = await fetch('https://api.stability.ai/v2beta/stable-image/generate/sd3', {
@@ -222,11 +237,13 @@ async function generateStableImage(prompt, aspectRatio, outputPath) {
       body: formData,
     });
     if (!response.ok) {
-      console.warn(`[SD] API error ${response.status}: ${(await response.text()).slice(0, 200)}`);
+      const errText = (await response.text()).slice(0, 300);
+      console.warn(`[SD] API error ${response.status}: ${errText}`);
       return false;
     }
     const buffer = Buffer.from(await response.arrayBuffer());
     writeFileSync(outputPath, buffer);
+    console.log(`[SD] ✓ Generated ${outputPath.split(/[\\/]/).pop()} (${buffer.length} bytes)`);
     return true;
   } catch (e) {
     console.warn(`[SD] Failed: ${e.message}`);
@@ -355,16 +372,26 @@ app.get('/play/:gameId', (req, res) => {
   const tracking = buildTrackingScript(req.params.gameId, origin);
 
   const resources = game.resources || [];
+  const fontLink = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">`;
+
   const spriteBootstrap = `<script>
 (function(){
-var GI=window.GAME_IMAGES={};
+var GI=window.GAME_IMAGES={},loaded=0,total=0;
 ${resources.length ? `window.GAME_RESOURCES=${JSON.stringify(resources)};
-window.GAME_RESOURCES.forEach(function(r){var img=new Image();img.crossOrigin='anonymous';img.onload=img.onerror=function(){};img.src=r.url;GI[r.id]=img;});` : ''}
+total=window.GAME_RESOURCES.length;
+window.GAME_RESOURCES.forEach(function(r){
+var img=new Image();
+img.onload=function(){loaded++;GI[r.id]=img;};
+img.onerror=function(){loaded++;console.warn('[Sprite] Failed to load: '+r.id);};
+img.src=r.url;
+});` : ''}
+window.spritesReady=function(){return total===0||loaded>=total;};
 window.drawSprite=function(id,ctx,x,y,w,h,fb){
 var img=GI[id];
-if(img&&img.complete&&img.naturalWidth>0){try{ctx.drawImage(img,x,y,w,h);return;}catch(e){}}
+if(img&&img.naturalWidth>0){try{ctx.drawImage(img,x,y,w,h);return;}catch(e){}}
 if(fb){ctx.fillStyle=fb;ctx.fillRect(x,y,w,h);}
 };
+window.GAME_FONT='"Noto Sans KR", sans-serif';
 window.onerror=function(msg,src,line){console.error('[Game Error] '+msg+' at line '+line);return true;};
 })();
 </script>
@@ -372,11 +399,11 @@ window.onerror=function(msg,src,line){console.error('[Game Error] '+msg+' at lin
 
   let html = cleanCode;
   if (html.includes('</head>')) {
-    html = html.replace('</head>', spriteBootstrap + '</head>');
+    html = html.replace('</head>', fontLink + spriteBootstrap + '</head>');
   } else if (html.includes('<body')) {
-    html = html.replace(/<body[^>]*>/, '$&' + spriteBootstrap);
+    html = html.replace(/<body[^>]*>/, '$&' + fontLink + spriteBootstrap);
   } else {
-    html = spriteBootstrap + html;
+    html = fontLink + spriteBootstrap + html;
   }
 
   if (html.includes('</body>')) {
@@ -467,21 +494,26 @@ app.post('/api/generate-resources', async (req, res) => {
     const gameResDir = join(RESOURCES_DIR, gameId);
     mkdirSync(gameResDir, { recursive: true });
 
+    const hasSDKey = Boolean(process.env.STABILITY_API_KEY);
+    console.log(`[Resources] SD API key: ${hasSDKey ? '✓ available' : '✗ missing'}`);
+
     const results = [];
     for (let i = 0; i < resources.length; i++) {
       const r = resources[i];
       let status = 'placeholder';
       let ext = 'svg';
+      const enhanced = enhancePrompt(r.prompt, r.category);
 
-      console.log(`[Resources] (${i + 1}/${resources.length}) Generating ${r.id}...`);
+      console.log(`[Resources] (${i + 1}/${resources.length}) Generating ${r.id} [${r.category}]...`);
 
-      if (process.env.STABILITY_API_KEY) {
+      if (hasSDKey) {
         ext = 'png';
-        const ok = await generateStableImage(r.prompt, r.aspectRatio, join(gameResDir, `${r.id}.png`));
+        const ok = await generateStableImage(enhanced, r.aspectRatio, join(gameResDir, `${r.id}.png`));
         if (ok) status = 'sd-generated';
+        else console.warn(`[Resources] SD failed for ${r.id}, falling back to AI SVG`);
       }
 
-      if (status === 'placeholder') {
+      if (status !== 'sd-generated') {
         const svg = await generateSVGWithClaude(r, context || {});
         if (svg) {
           writeFileSync(join(gameResDir, `${r.id}.svg`), svg);
