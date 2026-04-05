@@ -472,3 +472,15 @@
   3. **GamePlayer.jsx 수정** — Blob URL 대신 서버의 `/play/:gameId` URL을 iframe src로 직접 사용하도록 변경. 서버가 drawSprite 부트스트랩 + 이미지 프리로더 + 트래킹 스크립트를 자동 주입
 - **소요 시간**: 2026-04-05 15:50 ~ 15:57 (약 7분)
 
+---
+
+## #19
+- **시간**: 2026-04-05 16:00
+- **프롬프트**:
+  > @src/agents/ 이 에이전트들을 단계별로 각각 실행할 수 있게 수정해줘. 예를 들어 기획 Agent만 실행할 수 있도록 해줘 그리고 각 Agent별 결과물은 저장해놨다가 다음 단계 Agent 실행할때 사용할 수 있게 해주고
+- **수행 내용**:
+  1. **agentStore.js** — `resetAgent(agentType)` 개별 리셋 함수, `runningStep` 상태 추가
+  2. **useAgentPipeline.js** — 개별 실행 `runStep(stepKey)`, 이후 전체 실행 `runFrom(stepKey)` 함수 추가. 의존성 검증 (`STEP_DEPS`: trend→plan→resource→dev→judge). 결과물은 agentStore에 저장되어 다음 단계에서 자동 사용
+  3. **AgentPipeline.jsx** — 각 Agent 카드에 `▶ 실행` / `재실행` 버튼 + `⏩ 이후 전체` 버튼 추가. 선행 단계 미완료 시 의존성 안내 텍스트 표시. 기존 `전체 파이프라인 시작` 버튼도 유지
+- **소요 시간**: 2026-04-05 16:00 ~ 16:12 (약 12분)
+

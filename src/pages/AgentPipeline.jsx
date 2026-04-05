@@ -19,23 +19,42 @@ const pipelineSteps = [
   { key: 'judge', title: '판단 Agent', description: '지표 수집, Go/No-Go 판단', icon: '⚖️' },
 ];
 
+const STEP_LABELS = { trend: '시장조사', plan: '기획', resource: '리소스', dev: '개발', judge: '판단' };
+
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariant = { hidden: { opacity: 0, x: -16 }, show: { opacity: 1, x: 0 } };
 
 export default function AgentPipeline() {
-  const { start, reset, pipelineStatus, agents } = useAgentPipeline();
+  const { start, reset, runStep, runFrom, canRunStep, getMissingDeps, pipelineStatus, runningStep, agents, STEP_ORDER } = useAgentPipeline();
+  const isAnyRunning = pipelineStatus === 'running' || runningStep != null;
+
+  const handleRunStep = async (stepKey) => {
+    try {
+      await runStep(stepKey);
+    } catch (err) {
+      console.error(`Step ${stepKey} failed:`, err);
+    }
+  };
+
+  const handleRunFrom = async (stepKey) => {
+    try {
+      await runFrom(stepKey);
+    } catch (err) {
+      console.error(`Run from ${stepKey} failed:`, err);
+    }
+  };
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Agent 파이프라인</h1>
-          <p className="text-dark-400 mt-1">트렌드 분석부터 게임 배포까지 전체 자동화 흐름을 관리합니다</p>
+          <p className="text-dark-400 mt-1">트렌드 분석부터 게임 배포까지 — 전체 또는 단계별로 실행할 수 있습니다</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={reset} disabled={pipelineStatus === 'running'} className="btn-secondary disabled:opacity-50">초기화</button>
-          <button onClick={start} disabled={pipelineStatus === 'running'} className="btn-primary disabled:opacity-50">
-            {pipelineStatus === 'running' ? '실행 중...' : '파이프라인 시작'}
+          <button onClick={reset} disabled={isAnyRunning} className="btn-secondary disabled:opacity-50">초기화</button>
+          <button onClick={start} disabled={isAnyRunning} className="btn-primary disabled:opacity-50">
+            {pipelineStatus === 'running' ? '실행 중...' : '전체 파이프라인 시작'}
           </button>
         </div>
       </div>
@@ -76,25 +95,56 @@ export default function AgentPipeline() {
       {/* Pipeline Steps */}
       <div className="relative">
         <div className="absolute left-8 top-0 bottom-0 w-px bg-dark-700/50" />
-        {pipelineSteps.map((step) => {
+        {pipelineSteps.map((step, idx) => {
           const agent = agents[step.key];
+          const stepRunnable = canRunStep(step.key);
+          const missing = getMissingDeps(step.key);
+          const isRunning = runningStep === step.key;
+          const hasResult = agent.result != null;
+          const canRunFromHere = stepRunnable && !isAnyRunning;
+          const remainingSteps = STEP_ORDER.length - idx;
+
           return (
             <motion.div key={step.key} variants={itemVariant} className="relative pl-20 pb-6 last:pb-0">
               <div className="absolute left-6 top-3 w-5 h-5 bg-dark-800 border-2 border-dark-600 rounded-full flex items-center justify-center z-10">
                 <motion.div
-                  className={`w-2 h-2 rounded-full ${agent.status === 'completed' ? 'bg-emerald-500' : agent.status === 'running' ? 'bg-amber-500' : agent.status === 'error' ? 'bg-red-500' : 'bg-dark-600'}`}
-                  animate={agent.status === 'running' ? { scale: [1, 1.4, 1] } : {}}
-                  transition={agent.status === 'running' ? { duration: 1, repeat: Infinity } : {}}
+                  className={`w-2 h-2 rounded-full ${agent.status === 'completed' ? 'bg-emerald-500' : agent.status === 'running' || isRunning ? 'bg-amber-500' : agent.status === 'error' ? 'bg-red-500' : 'bg-dark-600'}`}
+                  animate={agent.status === 'running' || isRunning ? { scale: [1, 1.4, 1] } : {}}
+                  transition={agent.status === 'running' || isRunning ? { duration: 1, repeat: Infinity } : {}}
                 />
               </div>
               <div className="card">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">{step.icon}</span>
-                    <div><h3 className="font-semibold">{step.title}</h3><p className="text-sm text-dark-400 mt-1">{step.description}</p></div>
+                    <div>
+                      <h3 className="font-semibold">{step.title}</h3>
+                      <p className="text-sm text-dark-400 mt-1">{step.description}</p>
+                    </div>
                   </div>
-                  <StatusBadge status={agent.status} />
+                  <div className="flex items-center gap-2">
+                    <StepActions
+                      stepKey={step.key}
+                      isRunning={isRunning}
+                      isAnyRunning={isAnyRunning}
+                      stepRunnable={stepRunnable}
+                      hasResult={hasResult}
+                      missing={missing}
+                      remainingSteps={remainingSteps}
+                      onRun={() => handleRunStep(step.key)}
+                      onRunFrom={() => handleRunFrom(step.key)}
+                    />
+                    <StatusBadge status={isRunning ? 'running' : agent.status} />
+                  </div>
                 </div>
+
+                {/* Dependency hint */}
+                {!stepRunnable && agent.status === 'idle' && missing.length > 0 && (
+                  <p className="text-xs text-dark-500 mt-2 bg-dark-900/40 rounded-lg px-3 py-1.5">
+                    선행 단계 필요: {missing.map(d => STEP_LABELS[d]).join(', ')}
+                  </p>
+                )}
+
                 <LogPanel logs={agent.logs} />
                 <AnimatePresence>
                   {agent.result && (
@@ -109,6 +159,38 @@ export default function AgentPipeline() {
         })}
       </div>
     </motion.div>
+  );
+}
+
+function StepActions({ stepKey, isRunning, isAnyRunning, stepRunnable, hasResult, missing, remainingSteps, onRun, onRunFrom }) {
+  if (isRunning) return null;
+
+  const canRun = stepRunnable && !isAnyRunning;
+  const showRunFrom = canRun && remainingSteps > 1 && stepKey !== 'judge';
+
+  return (
+    <div className="flex gap-1.5">
+      {canRun && (
+        <button
+          onClick={onRun}
+          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all bg-primary-500/15 text-primary-400 hover:bg-primary-500/25 hover:text-primary-300"
+          title={hasResult ? '재실행' : '이 단계 실행'}
+        >
+          <span className="text-[10px]">▶</span>
+          {hasResult ? '재실행' : '실행'}
+        </button>
+      )}
+      {showRunFrom && (
+        <button
+          onClick={onRunFrom}
+          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 hover:text-amber-300"
+          title="이 단계부터 끝까지 자동 실행"
+        >
+          <span className="text-[10px]">⏩</span>
+          이후 전체
+        </button>
+      )}
+    </div>
   );
 }
 

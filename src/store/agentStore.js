@@ -1,10 +1,5 @@
 import { create } from 'zustand';
 
-/**
- * @typedef {'idle' | 'running' | 'completed' | 'error'} AgentStatus
- * @typedef {'trend' | 'plan' | 'dev' | 'judge' | 'orchestrator'} AgentType
- */
-
 export const useAgentStore = create((set, get) => ({
   agents: {
     orchestrator: { status: 'idle', logs: [], result: null },
@@ -15,6 +10,7 @@ export const useAgentStore = create((set, get) => ({
     judge: { status: 'idle', logs: [], result: null },
   },
   pipelineStatus: 'idle',
+  runningStep: null,
 
   setAgentStatus: (agentType, status) => {
     const agents = get().agents;
@@ -50,11 +46,23 @@ export const useAgentStore = create((set, get) => ({
     });
   },
 
+  resetAgent: (agentType) => {
+    const agents = get().agents;
+    set({
+      agents: {
+        ...agents,
+        [agentType]: { status: 'idle', logs: [], result: null },
+      },
+    });
+  },
+
   setPipelineStatus: (status) => set({ pipelineStatus: status }),
+  setRunningStep: (step) => set({ runningStep: step }),
 
   resetPipeline: () => {
     set({
       pipelineStatus: 'idle',
+      runningStep: null,
       agents: {
         orchestrator: { status: 'idle', logs: [], result: null },
         trend: { status: 'idle', logs: [], result: null },
